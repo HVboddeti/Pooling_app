@@ -1,0 +1,164 @@
+/* Reset */
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
+/* Global Styles */
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background-attachment: fixed;
+    color: #fafafa;
+    background-color: #f5f5dc;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Header */
+header {
+    background-color: #f3b659;
+    color: #fff;
+    padding: 10px 20px;
+    box-shadow: 0 2px 4px rgba(253, 252, 252, 0.993);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+nav ul {
+    list-style: none;
+    display: flex;
+    margin: 0;
+    padding: 0;
+}
+
+nav ul li {
+    margin-left: 20px;
+}
+
+nav ul li a {
+    font-weight: 500;
+}
+
+/* Main Content */
+main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    position: relative;
+}
+
+section {
+    background-color: #f8d4b4;
+    padding: 40px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgb(251, 251, 251);
+    margin-bottom: 40px;
+}
+
+h1, h2 {
+    color: #f7f5f5;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    
+}
+
+label {
+    margin-top: 10px;
+    font-weight: 500;
+}
+
+input, textarea, select {
+    padding: 15px;
+    margin-top: 5px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+button {
+    margin-top: 20px;
+    background-color: #f86d03;
+    color: #fff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+button:hover {
+    background-color: #a86e47;
+}
+
+/* Available Pools Section */
+.available-pools {
+    width: 300px;
+    background-color: #f8d4b4;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgb(251, 251, 251);
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+.available-pools h2 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.available-pools .pool {
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.available-pools .pool:last-child {
+    border-bottom: none;
+}
+
+/* Footer */
+footer {
+    background-color: #d3d3c9;
+    color: #fff;
+    text-align: center;
+    padding: 10px 0;
+}
+
+/* Media Queries */
+@media (max-width: 600px) {
+    nav ul {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    nav ul li {
+        margin-left: 0;
+        margin-top: 10px;
+    }
+
+    .available-pools {
+        position: relative;
+        width: 100%;
+        margin-top: 20px;
+    }
+}
