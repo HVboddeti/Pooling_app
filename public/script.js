@@ -9,7 +9,6 @@ async function navigateTo(page) {
     content.innerHTML = '';
 
     const loggedInUser = await isLoggedIn();
-    const hasCreated = await hasCreatedPool(loggedInUser.id); // Check if user has already created a pool
 
     if (page === 'home') {
         content.innerHTML = `
@@ -31,7 +30,7 @@ async function navigateTo(page) {
         `;
         updateNavLinks(loggedInUser, 'home');
     } else  if (page === 'create-pool') {
-        if (loggedInUser && !hasCreated) {
+        if (loggedInUser) {
             // Allow pool creation
             content.innerHTML = `
                 <section id="create-pool">
@@ -49,14 +48,6 @@ async function navigateTo(page) {
                 </section>
             `;
             document.getElementById('createPoolForm').addEventListener('submit', createPool);
-            updateNavLinks(loggedInUser, 'create-pool');
-        } else if (loggedInUser && hasCreated) {
-            // Inform the user they cannot create another pool
-            content.innerHTML = `
-                <section id="create-pool">
-                    <p>You have already created a pool. You cannot create another one.</p>
-                </section>
-            `;
             updateNavLinks(loggedInUser, 'create-pool');
         } else {
             navigateTo('login');
