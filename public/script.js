@@ -421,6 +421,13 @@ async function createPool(event) {
     const seats = document.getElementById('seats').value;
 
     try {
+        // Check if the user has already created a pool
+        const hasPool = await hasCreatedPool(loggedInUser.id);
+        if (hasPool) {
+            alert('You have already created a pool. You cannot create another one.');
+            return; // Exit function if user has already created a pool
+        }
+
         const response = await fetch('/api/pools', {
             method: 'POST',
             headers: {
@@ -441,6 +448,8 @@ async function createPool(event) {
         alert('Failed to create pool. Please try again.');
     }
 }
+
+
 
 async function requestRide(event) {
     event.preventDefault();
