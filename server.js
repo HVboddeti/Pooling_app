@@ -207,14 +207,19 @@ app.post('/api/logout', (req, res) => {
 });
 
 
-// Request a ride
+// Create or accept a ride request
 app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
     try {
         const pool = await AvailablePool.findById(req.params.poolId);
-        if (pool) {
+        if (!pool) {
+            return res.status(404).json({ message: 'Pool not found' });
+        }
+
+        if (req.method === 'POST') {
+            // Create a new ride request
             const { riderName, riderPhone, pickupLocation, dropLocation, requestNote } = req.body;
             const newRequest = {
-                riderId: req.session.user.id, // Include rider's ID
+                riderId: req.session.user.id,
                 riderName,
                 riderPhone,
                 pickupLocation,
@@ -223,22 +228,36 @@ app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
                 status: 'Pending'
             };
 
-            // Create a new request document in 'RequestRide' collection
             const request = new RequestRide(newRequest);
             await request.save();
 
-            // Add the request details to the pool's requests array
             pool.requests.push(newRequest);
             await pool.save();
 
-            res.status(201).json(request);
-        } else {
-            res.status(404).send('Pool not found');
+            res.status(201).json({ message: 'Request created successfully', request });
+        } else if (req.method === 'PATCH') {
+            // Accept a ride request
+            const { requestId } = req.body;
+            const request = pool.requests.find(req => req._id.equals(requestId));
+            if (!request) {
+                return res.status(404).json({ message: 'Request not found' });
+            }
+
+            // Update request status to 'Accepted'
+            request.status = 'Accepted';
+            await pool.save();
+
+            // Optionally update seats available count in the pool
+            pool.seats--;
+            await pool.save();
+
+            res.json({ message: 'Request accepted successfully', request });
         }
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
 
 // Get requests for a specific user
 app.get('/api/users/:userId/requests', requireLogin, async (req, res) => {
@@ -331,6 +350,10 @@ app.delete('/api/requests/:requestId', requireLogin, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+
+
+
 
 
 

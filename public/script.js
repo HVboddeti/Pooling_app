@@ -180,7 +180,7 @@ async function navigateTo(page) {
         } else {
             navigateTo('login');
         }
-    } else if (page === 'pool-status') {
+    } if (page === 'pool-status') {
         if (loggedInUser) {
             const poolStatusResponse = await fetch(`/api/pools?createdBy=${loggedInUser.id}`);
             if (poolStatusResponse.ok) {
@@ -194,7 +194,18 @@ async function navigateTo(page) {
                                 <li>
                                     <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
                                     <br>Seats Available: ${pool.seats}
-                                    <br>Pool Status: ${pool.requests.length > 0 ? 'Active' : 'No requests yet'}<br>
+                                    <br>Requests:
+                                    <ul>
+                                        ${pool.requests.length > 0 ? pool.requests.map(request => `
+                                            <li>
+                                                Rider: ${request.riderName} (${request.riderPhone})<br>
+                                                From: ${request.pickupLocation}<br>
+                                                To: ${request.dropLocation}<br>
+                                                Status: ${request.status}
+                                                ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}">Accept</button>` : ''}
+                                            </li>
+                                        `).join('') : 'No requests yet'}
+                                    </ul>
                                     <button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>
                                 </li>
                             `).join('')}
@@ -205,15 +216,17 @@ async function navigateTo(page) {
                 // Update navigation links
                 updateNavLinks(loggedInUser, 'pool-status');
     
-                // Add event listeners to edit buttons
+                // Add event listeners for accept and delete buttons dynamically
                 pools.forEach(pool => {
+                    pool.requests.forEach(request => {
+                        if (request.status === 'Pending') {
+                            const acceptButton = document.getElementById(`acceptButton_${request._id}`);
+                            acceptButton.addEventListener('click', () => acceptRequest(request._id, pool._id));
+                        }
+                    });
     
                     const deleteButton = document.getElementById(`deleteButton_${pool._id}`);
-                    if (deleteButton) {
-                        deleteButton.addEventListener('click', () => {
-                            deletePool(pool._id);
-                        });
-                    }
+                    deleteButton.addEventListener('click', () => deletePool(pool._id));
                 });
     
             } else {
@@ -224,7 +237,35 @@ async function navigateTo(page) {
             navigateTo('login');
         }
     }
-
+    
+    async function acceptRequest(requestId, poolId) {
+        try {
+            const response = await fetch(`/api/pools/${poolId}/requests/${requestId}/accept`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: 'Accepted' })
+            });
+    
+            if (!response.ok) {
+                throw new Error(`Failed to accept request. HTTP status ${response.status}`);
+            }
+    
+            // Update the frontend display after accepting the request
+            const statusElement = document.createElement('span');
+            statusElement.textContent = ' - Status: Accepted';
+            const requestListItem = document.querySelector(`#acceptButton_${requestId}`).closest('li');
+            requestListItem.appendChild(statusElement);
+    
+            // Optionally update seats available count (if managed in frontend)
+    
+        } catch (error) {
+            console.error('Error accepting request:', error);
+            alert('Error accepting request. Please try again.');
+        }
+    }
+    
 
     async function signup(event) {
         event.preventDefault();
