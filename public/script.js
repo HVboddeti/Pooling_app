@@ -416,7 +416,7 @@ async function createPool(event) {
 
         if (response.ok) {
             alert('Pool created successfully');
-            navigateTo('pool_status');
+            navigateTo('pool-status');
         } else {
             const errorData = await response.json();
             alert(`Failed to create pool: ${errorData.message}`);
