@@ -201,35 +201,42 @@ async function navigateTo(page) {
                 const pools = await poolStatusResponse.json();
     
                 content.innerHTML = `
-                    <section id="pool-status">
-                        <h2>Pool Status</h2>
-                        <ul id="poolStatusList">
-                            ${pools.map(pool => `
-                                <li>
-                                    <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
-                                    <br>Seats Available: <span class="seats-available">${pool.seats}</span>
-                                    <br>Requests:
-                                    <ul>
-                                        ${pool.requests.length > 0 ? pool.requests.map(request => `
-                                            <li>
-                                                Rider: ${request.riderName} (${request.riderPhone})<br>
-                                                From: ${request.pickupLocation}<br>
-                                                To: ${request.dropLocation}<br>
-                                                Status: <span class="request-status">${request.status}</span>
-                                                ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
-                                            </li>
-                                        `).join('') : 'No requests yet'}
-                                    </ul>
-                                    <button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>
-                                    <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    </section>
-                `;
+    <section id="pool-status">
+        <h2>Pool Status</h2>
+        <ul id="poolStatusList">
+            ${pools.map(pool => `
+                <li>
+                    <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
+                    <br>Seats Available: <span class="seats-available">${pool.seats}</span>
+                    <br>Requests:
+                    <ul>
+                        ${pool.requests.length > 0 ? pool.requests.map(request => `
+                            <li>
+                                Rider: ${request.riderName} (${request.riderPhone})<br>
+                                From: ${request.pickupLocation}<br>
+                                To: ${request.dropLocation}<br>
+                                Status: <span class="request-status">${request.status}</span>
+                                ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
+                            </li>
+                        `).join('') : 'No requests yet'}
+                    </ul>
+                    <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
+                    <button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>
+                    <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
+                </li>
+            `).join('')}
+        </ul>
+    </section>
+`;
     
                 // Update navigation links
                 updateNavLinks(loggedInUser, 'pool-status');
+
+                // Add event listener for edit button
+pools.forEach(pool => {
+    const editButton = document.getElementById(`editButton_${pool._id}`);
+    editButton.addEventListener('click', () => editPool(pool));
+});
     
                 // Add event listeners for accept, delete, and complete buttons dynamically
                 pools.forEach(pool => {
@@ -366,6 +373,61 @@ async function navigateTo(page) {
     
     }
 
+
+    function editPool(pool) {
+        const content = document.getElementById('content');
+        content.innerHTML = `
+            <section id="edit-pool">
+                <h2>Edit Pool</h2>
+                <form id="editPoolForm">
+                    <input type="text" id="driverName" name="driverName" value="${pool.driverName}" required>
+                    <input type="text" id="driverPhone" name="driverPhone" value="${pool.driverPhone}" required>
+                    <textarea id="driverNote" name="driverNote">${pool.driverNote}</textarea>
+                    <input type="text" id="pickupLocation" name="pickupLocation" value="${pool.pickupLocation}" required>
+                    <input type="text" id="dropLocation" name="dropLocation" value="${pool.dropLocation}" required>
+                    <input type="datetime-local" id="time" name="time" value="${pool.time.slice(0, 16)}" required>
+                    <input type="number" id="seats" name="seats" min="1" max="6" value="${pool.seats}" required>
+                    <button type="submit">Update Pool</button>
+                </form>
+            </section>
+        `;
+        document.getElementById('editPoolForm').addEventListener('submit', (event) => updatePool(event, pool._id));
+    }
+    
+    async function updatePool(event, poolId) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const updatedPool = Object.fromEntries(formData.entries());
+    
+        try {
+            console.log('Sending update request for pool:', poolId);
+            console.log('Updated pool data:', updatedPool);
+    
+            const response = await fetch(`/api/pools/${poolId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedPool),
+            });
+    
+            console.log('Server response status:', response.status);
+    
+            const responseData = await response.json();
+            console.log('Server response data:', responseData);
+    
+            if (response.ok) {
+                alert('Pool updated successfully');
+                navigateTo('pool-status');
+            } else {
+                alert(`Failed to update pool: ${responseData.message || responseData.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Error updating pool:', error);
+            alert(`Failed to update pool. Error: ${error.message}`);
+        }
+    }
+
     
 
 
@@ -420,6 +482,16 @@ async function navigateTo(page) {
                 alert('Pool completed and moved to history as all seats are filled');
                 poolElement.remove();
             }
+    
+            // Refresh the user's requests in the 'My Requests' tab
+            if (loggedInUser && loggedInUser.id) {
+                await fetchUserRequests(loggedInUser.id);
+            } else {
+                console.warn('User ID not available, cannot refresh requests');
+            }
+    
+            // Optionally, refresh the available pools list
+            await fetchAvailablePools();
     
         } catch (error) {
             console.error('Error accepting request:', error);
@@ -721,38 +793,43 @@ async function fetchUserRequests(userId) {
             const myRequestsList = document.getElementById('myRequestsList');
             if (myRequestsList) {
                 myRequestsList.innerHTML = requests.map(request => {
-                    const deleteButton = request.status !== 'Accepted' ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}" onclick="deleteRequest('${request._id}')">Delete Request</button>` : '';
+                    const deleteButton = request.status !== 'Accepted'
+                        ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}" onclick="deleteRequest('${request._id}')">Delete Request</button>`
+                        : '<span class="accepted-status">Accepted</span>';
+                    
+                    const formattedTime = request.time ? new Date(request.time).toLocaleString() : 'Time not set';
+                    
                     return `
                         <li>
-                            <strong>Request:</strong> Ride from ${request.pickupLocation} to ${request.dropLocation} at ${new Date(request.time).toLocaleString()}.
+                            <strong>Request:</strong> Ride from ${request.pickupLocation} to ${request.dropLocation} at ${formattedTime}.
                             <br>Status: ${request.status}
-                            <br>Driver: ${request.driverName}
+                            <br>Driver: ${request.driverName || 'Not assigned'}
                             <br>${deleteButton}
                         </li>
                     `;
                 }).join('');
-            }
 
-            // Add event listeners for delete buttons
-            requests.forEach(request => {
-                if (request.status !== 'Accepted') {
-                    const deleteButton = document.getElementById(`deleteRequest_${request._id}`);
-                    if (deleteButton) {
-                        deleteButton.addEventListener('click', () => {
-                            deleteRequest(request._id);
-                        });
+                // Add event listeners for delete buttons
+                requests.forEach(request => {
+                    if (request.status !== 'Accepted') {
+                        const deleteButton = document.getElementById(`deleteRequest_${request._id}`);
+                        if (deleteButton) {
+                            deleteButton.addEventListener('click', () => {
+                                deleteRequest(request._id);
+                            });
+                        }
                     }
-                }
-            });
-
+                });
+            }
         } else {
+            console.error('Failed to fetch requests:', await response.text());
             alert('Failed to fetch requests');
         }
     } catch (error) {
         console.error('Error fetching requests:', error);
+        alert('Error fetching requests. Please try again.');
     }
 }
-
 
 
 async function deleteRequest(requestId) {

@@ -18,7 +18,9 @@ const requestSchema = new mongoose.Schema({
         type: String,
         enum: ['Pending', 'Accepted'],
         default: 'Pending'
-    }
+    },
+    driverName: String,
+    time: Date
 });
 
 module.exports = mongoose.model('RequestRide', requestSchema);

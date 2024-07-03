@@ -262,6 +262,13 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
         pool.seats--;
         await pool.save();
 
+         // Update the status in the RequestRide collection
+         await RequestRide.findByIdAndUpdate(requestId, { 
+            status: 'Accepted',
+            driverName: pool.driverName,
+            time: pool.time
+        });
+
         console.log(`Request with ID: ${requestId} accepted`);
 
         let poolCompleted = false;
@@ -309,12 +316,50 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
 app.get('/api/users/:userId/requests', requireLogin, async (req, res) => {
     try {
         const userId = req.params.userId;
-        const userRequests = await RequestRide.find({ riderId: userId });
-        res.json(userRequests);
+        const userRequests = await RequestRide.find({ riderId: userId }).lean();
+        console.log('User Requests:', userRequests);  // Add this line for debugging
+
+        // Fetch the latest pool information for each request
+        const updatedRequests = await Promise.all(userRequests.map(async (request) => {
+            console.log('Processing request:', request);  // Add this line for debugging
+
+            const pool = await AvailablePool.findOne({ 'requests._id': request._id });
+            if (pool) {
+                const poolRequest = pool.requests.id(request._id);
+                console.log('Found in AvailablePool:', pool, 'PoolRequest:', poolRequest);  // Add this line for debugging
+                return {
+                    ...request,
+                    status: poolRequest ? poolRequest.status : request.status,
+                    driverName: pool.driverName,
+                    time: pool.time
+                };
+            }
+
+            // If the pool is not found, it might have been moved to history
+            const historicalRide = await HistoricalRide.findOne({ 'requests._id': request._id });
+            if (historicalRide) {
+                const historicalRequest = historicalRide.requests.find(r => r._id.toString() === request._id.toString());
+                console.log('Found in HistoricalRide:', historicalRide, 'HistoricalRequest:', historicalRequest);  // Add this line for debugging
+                return {
+                    ...request,
+                    status: historicalRequest ? historicalRequest.status : request.status,
+                    driverName: historicalRide.driverName,
+                    time: historicalRide.time
+                };
+            }
+
+            console.log('Request not found in AvailablePool or HistoricalRide:', request);  // Add this line for debugging
+            return request;
+        }));
+
+        console.log('Updated requests:', updatedRequests);  // Add this line for debugging
+        res.json(updatedRequests);
     } catch (error) {
+        console.error('Error fetching user requests:', error);
         res.status(500).json({ error: error.message });
     }
 });
+
 
 
 // Get user info
@@ -477,6 +522,57 @@ app.get('/api/users/:userId/history', requireLogin, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch ride history', details: error.message });
     }
 });
+
+
+
+
+
+
+
+// Update a pool
+app.put('/api/pools/:poolId', requireLogin, async (req, res) => {
+    const poolId = req.params.poolId;
+    const updatedPool = req.body;
+
+    console.log('Received update request for pool:', poolId);
+    console.log('Updated pool data:', updatedPool);
+
+    try {
+        const pool = await AvailablePool.findById(poolId);
+        if (!pool) {
+            console.log('Pool not found:', poolId);
+            return res.status(404).json({ message: 'Pool not found' });
+        }
+
+        console.log('Found pool:', pool);
+
+        // Check if the user is the creator of the pool
+        if (pool.createdBy.toString() !== req.session.user.id) {
+            console.log('Unauthorized update attempt. User:', req.session.user.id, 'Pool creator:', pool.createdBy);
+            return res.status(403).json({ message: 'You are not authorized to update this pool' });
+        }
+
+        // Update the pool
+        Object.assign(pool, updatedPool);
+        console.log('Pool after update:', pool);
+
+        const savedPool = await pool.save();
+        console.log('Saved updated pool:', savedPool);
+
+        res.json({ message: 'Pool updated successfully', pool: savedPool });
+    } catch (error) {
+        console.error('Error updating pool:', error);
+        res.status(500).json({ error: error.message, stack: error.stack });
+    }
+});
+
+
+
+
+
+
+
+
 
 
 app.listen(port, () => {
