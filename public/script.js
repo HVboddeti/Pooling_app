@@ -372,6 +372,7 @@ async function updateNavLinks(loggedInUser, currentPage) {
             <li><a href="#" onclick="navigateTo('home')" ${currentPage === 'home' ? 'class="active"' : ''}>Home</a></li>
             ${hasRequests ? `<li><a href="#" onclick="navigateTo('my-requests')" ${currentPage === 'my-requests' ? 'class="active"' : ''}>My Requests</a></li>` : ''}
             ${hasCreatedPools ? `<li><a href="#" onclick="navigateTo('pool-status')" ${currentPage === 'pool-status' ? 'class="active"' : ''}>Pool Status</a></li>` : ''}
+            <li><a href="#" onclick="navigateTo('history')" ${currentPage === 'history' ? 'class="active"' : ''}>History</a></li>
             <li><a href="#" onclick="navigateTo('user-info')" ${currentPage === 'user-info' ? 'class="active"' : ''}>User Info</a></li>
             <li><a href="#" data-user-id="${loggedInUser.id}" id="logout-link">Sign Out</a></li>
         `;
