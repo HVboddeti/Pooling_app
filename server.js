@@ -207,7 +207,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 
-// Create or accept a ride request
+// Create a new ride request
 app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
     try {
         const pool = await AvailablePool.findById(req.params.poolId);
@@ -215,48 +215,63 @@ app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
             return res.status(404).json({ message: 'Pool not found' });
         }
 
-        if (req.method === 'POST') {
-            // Create a new ride request
-            const { riderName, riderPhone, pickupLocation, dropLocation, requestNote } = req.body;
-            const newRequest = {
-                riderId: req.session.user.id,
-                riderName,
-                riderPhone,
-                pickupLocation,
-                dropLocation,
-                requestNote,
-                status: 'Pending'
-            };
+        const { riderName, riderPhone, pickupLocation, dropLocation, requestNote } = req.body;
+        const newRequest = {
+            riderId: req.session.user.id,
+            riderName,
+            riderPhone,
+            pickupLocation,
+            dropLocation,
+            requestNote,
+            status: 'Pending'
+        };
 
-            const request = new RequestRide(newRequest);
-            await request.save();
+        const request = new RequestRide(newRequest);
+        await request.save();
 
-            pool.requests.push(newRequest);
-            await pool.save();
+        pool.requests.push(newRequest);
+        await pool.save();
 
-            res.status(201).json({ message: 'Request created successfully', request });
-        } else if (req.method === 'PATCH') {
-            // Accept a ride request
-            const { requestId } = req.body;
-            const request = pool.requests.find(req => req._id.equals(requestId));
-            if (!request) {
-                return res.status(404).json({ message: 'Request not found' });
-            }
-
-            // Update request status to 'Accepted'
-            request.status = 'Accepted';
-            await pool.save();
-
-            // Optionally update seats available count in the pool
-            pool.seats--;
-            await pool.save();
-
-            res.json({ message: 'Request accepted successfully', request });
-        }
+        res.status(201).json({ message: 'Request created successfully', request });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
+
+// Accept a ride request
+app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (req, res) => {
+    try {
+        const { poolId, requestId } = req.params;
+        console.log(`Accepting request with ID: ${requestId} for pool: ${poolId}`); // Debugging log
+
+        const pool = await AvailablePool.findById(poolId);
+        if (!pool) {
+            console.log('Pool not found'); // Debugging log
+            return res.status(404).json({ message: 'Pool not found' });
+        }
+
+        const request = pool.requests.id(requestId); // Use Mongoose's subdocument method
+        if (!request) {
+            console.log('Request not found'); // Debugging log
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Update request status to 'Accepted'
+        request.status = 'Accepted';
+
+        // Optionally update seats available count in the pool
+        pool.seats--;
+        await pool.save();
+
+        console.log(`Request with ID: ${requestId} accepted`); // Debugging log
+        res.json({ message: 'Request accepted successfully', request });
+    } catch (error) {
+        console.error('Error accepting request:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 
 
 // Get requests for a specific user
