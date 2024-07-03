@@ -180,6 +180,20 @@ async function navigateTo(page) {
         } else {
             navigateTo('login');
         }
+    } else if (page === 'history') {
+        if (loggedInUser) {
+            console.log('Logged in user:', loggedInUser); // Add this line for debugging
+            content.innerHTML = `
+                <section id="history">
+                    <h2>Ride History</h2>
+                    <ul id="historyList"></ul>
+                </section>
+            `;
+            await fetchRideHistory(loggedInUser.id);
+            updateNavLinks(loggedInUser, 'history');
+        } else {
+            navigateTo('login');
+        }
     } else if (page === 'pool-status') {
         if (loggedInUser) {
             const poolStatusResponse = await fetch(`/api/pools?createdBy=${loggedInUser.id}`);
@@ -207,6 +221,7 @@ async function navigateTo(page) {
                                         `).join('') : 'No requests yet'}
                                     </ul>
                                     <button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>
+                                    <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
                                 </li>
                             `).join('')}
                         </ul>
@@ -216,7 +231,7 @@ async function navigateTo(page) {
                 // Update navigation links
                 updateNavLinks(loggedInUser, 'pool-status');
     
-                // Add event listeners for accept and delete buttons dynamically
+                // Add event listeners for accept, delete, and complete buttons dynamically
                 pools.forEach(pool => {
                     pool.requests.forEach(request => {
                         if (request.status === 'Pending') {
@@ -227,20 +242,137 @@ async function navigateTo(page) {
     
                     const deleteButton = document.getElementById(`deleteButton_${pool._id}`);
                     deleteButton.addEventListener('click', () => deletePool(pool._id));
+    
+                    const completeButton = document.getElementById(`completeButton_${pool._id}`);
+                    completeButton.addEventListener('click', () => completePool(pool._id));
                 });
     
             } else {
                 alert('Failed to fetch pool status');
-                navigateTo('home'); // Redirect to home or handle error as needed
+                navigateTo('home');
             }
         } else {
             navigateTo('login');
+        } 
+    }
+
+
+    async function completePool(poolId) {
+        try {
+            console.log(`Attempting to complete pool: ${poolId}`);
+            const response = await fetch(`/api/pools/${poolId}/complete`, {
+                method: 'POST',
+            });
+    
+            const responseData = await response.json();
+            console.log('Server response:', responseData);
+            
+            if (!response.ok) {
+                throw new Error(`Server responded with ${response.status}: ${responseData.error || 'Unknown error'}`);
+            }
+    
+            console.log('Pool completion result:', responseData);
+            alert(responseData.message);
+            navigateTo('pool-status'); // Refresh pool status after completion
+        } catch (error) {
+            console.error('Error completing pool:', error);
+            alert(`Failed to complete pool: ${error.message}`);
         }
     }
+
+
+
+    async function fetchRideHistory(userId) {
+        try {
+            console.log(`Fetching ride history for user: ${userId}`);
+            const response = await fetch(`/api/users/${userId}/history`);
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+            
+            const history = await response.json();
+            console.log(`Received ${history.length} historical rides:`, history);
+            
+            const historyList = document.getElementById('historyList');
+            if (historyList) {
+                historyList.innerHTML = history.map(ride => `
+                    <li>
+                        <strong>Ride:</strong> From ${ride.pickupLocation} to ${ride.dropLocation}
+                        <br>Date: ${new Date(ride.time).toLocaleString()}
+                        <br>Driver: ${ride.driverName}
+                        <br>Status: Completed
+                    </li>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error fetching ride history:', error);
+            alert(`Failed to fetch ride history: ${error.message}`);
+        }
+    }
+
+
+
+
+
+    async function updateNavLinks(loggedInUser, currentPage) {
+        const navLinks = document.getElementById('nav-links');
+        navLinks.innerHTML = '';
+    
+        const hasRequests = await userHasRequests(loggedInUser?.id);
+        const hasCreatedPools = await userHasCreatedPools(loggedInUser?.id); // Check if user has created pools
+    
+        if (loggedInUser) {
+            navLinks.innerHTML = `
+                <li><a href="#" onclick="navigateTo('home')" ${currentPage === 'home' ? 'class="active"' : ''}>Home</a></li>
+                ${hasRequests ? `<li><a href="#" onclick="navigateTo('my-requests')" ${currentPage === 'my-requests' ? 'class="active"' : ''}>My Requests</a></li>` : ''}
+                ${hasCreatedPools ? `<li><a href="#" onclick="navigateTo('pool-status')" ${currentPage === 'pool-status' ? 'class="active"' : ''}>Pool Status</a></li>` : ''}
+                <li><a href="#" id="history-link" ${currentPage === 'history' ? 'class="active"' : ''}>History</a></li>
+                <li><a href="#" onclick="navigateTo('user-info')" ${currentPage === 'user-info' ? 'class="active"' : ''}>User Info</a></li>
+                <li><a href="#" data-user-id="${loggedInUser.id}" id="logout-link">Sign Out</a></li>
+            `;
+        } else {
+            navLinks.innerHTML = `
+                <li><a href="#" onclick="navigateTo('home')" ${currentPage === 'home' ? 'class="active"' : ''}>Home</a></li>
+                <li><a href="#" onclick="navigateTo('signup')" ${currentPage === 'signup' ? 'class="active"' : ''}>Sign Up</a></li>
+                <li><a href="#" onclick="navigateTo('login')" ${currentPage === 'login' ? 'class="active"' : ''}>Login</a></li>
+    
+            `;
+        }
+        // Attach the logout event listener
+        const logoutLink = document.getElementById('logout-link');
+        if (logoutLink) {
+            logoutLink.addEventListener('click', async (event) => {
+                event.preventDefault();
+                const userId = logoutLink.getAttribute('data-user-id');
+                await logout(userId);
+            });
+        }
+
+        const historyLink = document.getElementById('history-link');
+        if (historyLink) {
+            historyLink.addEventListener('click', (event) => {
+                event.preventDefault();
+                navigateTo('history');
+            });
+        }
+
+    
+    
+        console.log('Nav links updated:', navLinks.innerHTML); // Debugging
+    
+    }
+
+    
+
+
     
     async function acceptRequest(requestId, poolId) {
         try {
-            console.log(`Sending request to accept requestId: ${requestId} for poolId: ${poolId}`); // Debugging log
+            console.log(`Sending request to accept requestId: ${requestId} for poolId: ${poolId}`);
     
             const response = await fetch(`/api/pools/${poolId}/requests/${requestId}/accept`, {
                 method: 'PATCH',
@@ -250,20 +382,23 @@ async function navigateTo(page) {
                 body: JSON.stringify({ status: 'Accepted' })
             });
     
-            console.log(`Response status: ${response.status}`); // Debugging log
+            console.log(`Response status: ${response.status}`);
     
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error('Error response data:', errorData); // Debugging log
+                console.error('Error response data:', errorData);
                 throw new Error(`Failed to accept request. HTTP status ${response.status}`);
             }
     
             const result = await response.json();
-            console.log('Accept request result:', result); // Debugging log
+            console.log('Accept request result:', result);
     
             // Update the frontend display after accepting the request
+            const poolElement = document.querySelector(`#deleteButton_${poolId}`).closest('li');
             const requestListItem = document.querySelector(`#acceptButton_${requestId}`).closest('li');
             const statusElement = requestListItem.querySelector('.request-status');
+            const seatsElement = poolElement.querySelector('.seats-available');
+            
             if (statusElement) {
                 statusElement.textContent = 'Accepted';
             }
@@ -272,6 +407,18 @@ async function navigateTo(page) {
             const acceptButton = document.querySelector(`#acceptButton_${requestId}`);
             if (acceptButton) {
                 acceptButton.remove();
+            }
+    
+            // Update seats available
+            if (seatsElement) {
+                const currentSeats = parseInt(seatsElement.textContent) - 1;
+                seatsElement.textContent = currentSeats;
+            }
+    
+            // If the pool was completed, remove it from the list
+            if (result.poolCompleted) {
+                alert('Pool completed and moved to history as all seats are filled');
+                poolElement.remove();
             }
     
         } catch (error) {
@@ -358,48 +505,7 @@ async function navigateTo(page) {
             alert('Failed to delete pool. Please try again.');
         }
     }
-    
-
-async function updateNavLinks(loggedInUser, currentPage) {
-    const navLinks = document.getElementById('nav-links');
-    navLinks.innerHTML = '';
-
-    const hasRequests = await userHasRequests(loggedInUser?.id);
-    const hasCreatedPools = await userHasCreatedPools(loggedInUser?.id); // Check if user has created pools
-
-    if (loggedInUser) {
-        navLinks.innerHTML = `
-            <li><a href="#" onclick="navigateTo('home')" ${currentPage === 'home' ? 'class="active"' : ''}>Home</a></li>
-            ${hasRequests ? `<li><a href="#" onclick="navigateTo('my-requests')" ${currentPage === 'my-requests' ? 'class="active"' : ''}>My Requests</a></li>` : ''}
-            ${hasCreatedPools ? `<li><a href="#" onclick="navigateTo('pool-status')" ${currentPage === 'pool-status' ? 'class="active"' : ''}>Pool Status</a></li>` : ''}
-            <li><a href="#" onclick="navigateTo('history')" ${currentPage === 'history' ? 'class="active"' : ''}>History</a></li>
-            <li><a href="#" onclick="navigateTo('user-info')" ${currentPage === 'user-info' ? 'class="active"' : ''}>User Info</a></li>
-            <li><a href="#" data-user-id="${loggedInUser.id}" id="logout-link">Sign Out</a></li>
-        `;
-    } else {
-        navLinks.innerHTML = `
-            <li><a href="#" onclick="navigateTo('home')" ${currentPage === 'home' ? 'class="active"' : ''}>Home</a></li>
-            <li><a href="#" onclick="navigateTo('signup')" ${currentPage === 'signup' ? 'class="active"' : ''}>Sign Up</a></li>
-            <li><a href="#" onclick="navigateTo('login')" ${currentPage === 'login' ? 'class="active"' : ''}>Login</a></li>
-
-        `;
-    }
-    // Attach the logout event listener
-    const logoutLink = document.getElementById('logout-link');
-    if (logoutLink) {
-        logoutLink.addEventListener('click', async (event) => {
-            event.preventDefault();
-            const userId = logoutLink.getAttribute('data-user-id');
-            await logout(userId);
-        });
-    }
-
-
-    console.log('Nav links updated:', navLinks.innerHTML); // Debugging
-
-}
-
-
+     
 
 
 
@@ -536,6 +642,17 @@ async function requestRide(event) {
         if (response.ok) {
             const requestData = await response.json();
             alert('Ride requested successfully');
+            
+            // Check if the pool's seat count has become zero
+            const updatedPoolResponse = await fetch(`/api/pools/${poolId}`);
+            if (updatedPoolResponse.ok) {
+                const updatedPool = await updatedPoolResponse.json();
+                if (updatedPool.seats === 0) {
+                    // Move the pool to history
+                    await completePool(poolId);
+                }
+            }
+            
             navigateTo('home');
         } else {
             const errorData = await response.json();
@@ -553,6 +670,8 @@ async function fetchAvailablePools() {
         const response = await fetch('/api/pools');
         if (response.ok) {
             pools = await response.json();
+            // Filter out pools with zero seats
+            pools = pools.filter(pool => pool.seats > 0);
             const availablePoolsList = document.getElementById('availablePoolsList');
             if (availablePoolsList) {
                 availablePoolsList.innerHTML = pools.map(pool => {
@@ -578,6 +697,8 @@ async function fetchAvailablePools() {
         console.error('Error fetching pools:', error);
     }
 }
+
+
 
 async function userHasRequests(userId) {
     try {
@@ -658,14 +779,12 @@ async function deleteRequest(requestId) {
 }
 
 
-
-
-
-
 async function populatePoolOptions() {
     const poolSelect = document.getElementById('pool');
     if (poolSelect) {
-        poolSelect.innerHTML = pools.map((pool, index) => `
+        // Filter out pools with zero seats
+        const availablePools = pools.filter(pool => pool.seats > 0);
+        poolSelect.innerHTML = availablePools.map((pool, index) => `
             <option value="${pool._id}">
                 Pool ${index + 1}: ${pool.driverName} - ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}
             </option>

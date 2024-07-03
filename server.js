@@ -6,6 +6,8 @@ const bcrypt = require('bcrypt');
 const session = require('express-session');
 const User = require('./models/User');
 const RequestRide = require('./models/requestSchema'); // Import the RequestRide model
+const HistoricalRide = require('./models/history');
+
 
 const app = express();
 const port = 3000;
@@ -242,29 +244,58 @@ app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
 app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (req, res) => {
     try {
         const { poolId, requestId } = req.params;
-        console.log(`Accepting request with ID: ${requestId} for pool: ${poolId}`); // Debugging log
+        console.log(`Accepting request with ID: ${requestId} for pool: ${poolId}`);
 
         const pool = await AvailablePool.findById(poolId);
         if (!pool) {
-            console.log('Pool not found'); // Debugging log
+            console.log('Pool not found');
             return res.status(404).json({ message: 'Pool not found' });
         }
 
-        const request = pool.requests.id(requestId); // Use Mongoose's subdocument method
+        const request = pool.requests.id(requestId);
         if (!request) {
-            console.log('Request not found'); // Debugging log
+            console.log('Request not found');
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        // Update request status to 'Accepted'
         request.status = 'Accepted';
-
-        // Optionally update seats available count in the pool
         pool.seats--;
         await pool.save();
 
-        console.log(`Request with ID: ${requestId} accepted`); // Debugging log
-        res.json({ message: 'Request accepted successfully', request });
+        console.log(`Request with ID: ${requestId} accepted`);
+
+        let poolCompleted = false;
+        // Check if seats are now 0
+        if (pool.seats === 0) {
+            // Move pool to history
+            const historicalRideData = {
+                poolId: pool._id,
+                driverName: pool.driverName,
+                driverPhone: pool.driverPhone,
+                driverNote: pool.driverNote,
+                pickupLocation: pool.pickupLocation,
+                dropLocation: pool.dropLocation,
+                time: new Date(pool.time),
+                seats: pool.seats,
+                createdBy: pool.createdBy,
+                requests: pool.requests
+            };
+
+            const historicalRide = new HistoricalRide(historicalRideData);
+            await historicalRide.save();
+
+            // Delete the pool from AvailablePool
+            await AvailablePool.findByIdAndDelete(poolId);
+
+            console.log(`Pool moved to history as seats became 0`);
+            poolCompleted = true;
+        }
+
+        res.json({ 
+            message: poolCompleted ? 'Request accepted and pool completed' : 'Request accepted successfully', 
+            request,
+            poolCompleted
+        });
     } catch (error) {
         console.error('Error accepting request:', error);
         res.status(500).json({ error: error.message });
@@ -369,11 +400,83 @@ app.delete('/api/requests/:requestId', requireLogin, async (req, res) => {
 
 
 
+// Mark a pool as completed
+app.post('/api/pools/:poolId/complete', requireLogin, async (req, res) => {
+    try {
+        const poolId = req.params.poolId;
+        console.log(`Attempting to complete pool: ${poolId}`);
+        
+        const pool = await AvailablePool.findById(poolId);
+        if (!pool) {
+            console.log(`Pool not found: ${poolId}`);
+            return res.status(404).json({ message: 'Pool not found' });
+        }
+
+        console.log(`Found pool:`, JSON.stringify(pool, null, 2));
+
+        // Create a historical ride entry
+        const historicalRideData = {
+            poolId: pool._id,
+            driverName: pool.driverName || '',
+            driverPhone: pool.driverPhone || '',
+            driverNote: pool.driverNote || '',
+            pickupLocation: pool.pickupLocation || '',
+            dropLocation: pool.dropLocation || '',
+            time: new Date(pool.time),
+            seats: pool.seats || 0,
+            createdBy: pool.createdBy,
+            requests: (pool.requests || []).map(request => ({
+                riderId: request.riderId,
+                riderName: request.riderName || '',
+                riderPhone: request.riderPhone || '',
+                pickupLocation: request.pickupLocation || '',
+                dropLocation: request.dropLocation || '',
+                requestNote: request.requestNote || '',
+                status: request.status || ''
+            }))
+        };
+
+        console.log(`Historical ride data:`, JSON.stringify(historicalRideData, null, 2));
+
+        const historicalRide = new HistoricalRide(historicalRideData);
+
+        console.log(`Created historical ride:`, JSON.stringify(historicalRide, null, 2));
+
+        const savedHistoricalRide = await historicalRide.save();
+        console.log(`Saved historical ride:`, JSON.stringify(savedHistoricalRide, null, 2));
+
+        // Delete the pool from AvailablePool
+        const deletedPool = await AvailablePool.findByIdAndDelete(poolId);
+        console.log(`Deleted pool:`, JSON.stringify(deletedPool, null, 2));
+
+        res.json({ message: 'Pool completed and moved to history' });
+    } catch (error) {
+        console.error('Error completing pool:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 
-
-
-
+// Get ride history for a user
+app.get('/api/users/:userId/history', requireLogin, async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        console.log(`Fetching ride history for user: ${userId}`);
+        
+        const historicalRides = await HistoricalRide.find({ 
+            $or: [
+                { createdBy: userId },
+                { 'requests.riderId': userId }
+            ]
+        });
+        
+        console.log(`Found ${historicalRides.length} historical rides for user ${userId}`);
+        res.json(historicalRides);
+    } catch (error) {
+        console.error('Error fetching ride history:', error);
+        res.status(500).json({ error: 'Failed to fetch ride history', details: error.message });
+    }
+});
 
 
 app.listen(port, () => {
