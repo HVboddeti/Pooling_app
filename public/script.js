@@ -201,66 +201,60 @@ async function navigateTo(page) {
                 const pools = await poolStatusResponse.json();
     
                 content.innerHTML = `
-    <section id="pool-status">
-        <h2>Pool Status</h2>
-        <ul id="poolStatusList">
-            ${pools.map(pool => `
-                <li>
-                    <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
-                    <br>Seats Available: <span class="seats-available">${pool.seats}</span>
-                    <br>Requests:
-                    <ul>
-                        ${pool.requests.length > 0 ? pool.requests.map(request => `
-                            <li>
-                                Rider: ${request.riderName} (${request.riderPhone})<br>
-                                From: ${request.pickupLocation}<br>
-                                To: ${request.dropLocation}<br>
-                                Status: <span class="request-status">${request.status}</span>
-                                ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
-                            </li>
-                        `).join('') : 'No requests yet'}
-                    </ul>
-                    <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
-                    <button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>
-                    <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
-                </li>
-            `).join('')}
-        </ul>
-    </section>
-`;
+                    <section id="pool-status">
+                        <h2>Pool Status</h2>
+                        <ul id="poolStatusList">
+                            ${pools.map(pool => {
+                                const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
+                                return `
+                                    <li>
+                                        <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
+                                        <br>Seats Available: <span class="seats-available">${pool.seats}</span>
+                                        <br>Requests:
+                                        <ul>
+                                            ${pool.requests.length > 0 ? pool.requests.map(request => `
+                                                <li>
+                                                    Rider: ${request.riderName} (${request.riderPhone})<br>
+                                                    From: ${request.pickupLocation}<br>
+                                                    To: ${request.dropLocation}<br>
+                                                    Status: <span class="request-status">${request.status}</span>
+                                                    ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
+                                                </li>
+                                            `).join('') : 'No requests yet'}
+                                        </ul>
+                                        <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
+                                        ${!hasAcceptedRequest ? `<button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>` : ''}
+                                        <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
+                                    </li>
+                                `;
+                            }).join('')}
+                        </ul>
+                    </section>
+                `;
     
-                // Update navigation links
-                updateNavLinks(loggedInUser, 'pool-status');
-
-                // Add event listener for edit button
-pools.forEach(pool => {
-    const editButton = document.getElementById(`editButton_${pool._id}`);
-    editButton.addEventListener('click', () => editPool(pool));
-});
-    
-                // Add event listeners for accept, delete, and complete buttons dynamically
+                // Add event listeners for buttons
                 pools.forEach(pool => {
+                    const editButton = document.getElementById(`editButton_${pool._id}`);
+                    editButton.addEventListener('click', () => editPool(pool));
+    
+                    const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
+                    if (!hasAcceptedRequest) {
+                        const deleteButton = document.getElementById(`deleteButton_${pool._id}`);
+                        deleteButton.addEventListener('click', () => deletePool(pool._id));
+                    }
+    
+                    const completeButton = document.getElementById(`completeButton_${pool._id}`);
+                    completeButton.addEventListener('click', () => completePool(pool._id));
+    
                     pool.requests.forEach(request => {
                         if (request.status === 'Pending') {
                             const acceptButton = document.getElementById(`acceptButton_${request._id}`);
                             acceptButton.addEventListener('click', () => acceptRequest(request._id, pool._id));
                         }
                     });
-    
-                    const deleteButton = document.getElementById(`deleteButton_${pool._id}`);
-                    deleteButton.addEventListener('click', () => deletePool(pool._id));
-    
-                    const completeButton = document.getElementById(`completeButton_${pool._id}`);
-                    completeButton.addEventListener('click', () => completePool(pool._id));
                 });
-    
-            } else {
-                alert('Failed to fetch pool status');
-                navigateTo('home');
             }
-        } else {
-            navigateTo('login');
-        } 
+        }
     }
 
 
