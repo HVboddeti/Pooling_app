@@ -217,25 +217,88 @@ app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
             return res.status(404).json({ message: 'Pool not found' });
         }
 
-        const { riderName, riderPhone, pickupLocation, dropLocation, requestNote } = req.body;
+        const { riderName, riderPhone, pickupLocation, dropLocation, numberOfPersons, requestNote } = req.body;
+        
+        // Ensure numberOfPersons is a valid number
+        const parsedNumberOfPersons = parseInt(numberOfPersons);
+        if (isNaN(parsedNumberOfPersons) || parsedNumberOfPersons <= 0) {
+            return res.status(400).json({ message: 'Invalid number of persons' });
+        }
+
+        // Check if there are enough seats available, but don't decrease them
+        if (pool.seats < parsedNumberOfPersons) {
+            return res.status(400).json({ message: 'Not enough seats available in this pool' });
+        }
+
         const newRequest = {
             riderId: req.session.user.id,
             riderName,
             riderPhone,
             pickupLocation,
             dropLocation,
+            numberOfPersons: parsedNumberOfPersons,
             requestNote,
             status: 'Pending'
         };
 
+        pool.requests.push(newRequest);
+        await pool.save();
+
         const request = new RequestRide(newRequest);
         await request.save();
+
+        console.log('New request created:', JSON.stringify(request, null, 2));
+
+        res.status(201).json({ message: 'Request created successfully', request });
+    } catch (error) {
+        console.error('Error creating request:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+
+// Create a new ride request
+app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
+    try {
+        const pool = await AvailablePool.findById(req.params.poolId);
+        if (!pool) {
+            return res.status(404).json({ message: 'Pool not found' });
+        }
+
+        const { riderName, riderPhone, pickupLocation, dropLocation, numberOfPersons, requestNote } = req.body;
+        
+        // Ensure numberOfPersons is a valid number
+        const parsedNumberOfPersons = parseInt(numberOfPersons);
+        if (isNaN(parsedNumberOfPersons) || parsedNumberOfPersons <= 0) {
+            return res.status(400).json({ message: 'Invalid number of persons' });
+        }
+
+        // Check if there are enough seats available
+        if (pool.seats < parsedNumberOfPersons) {
+            return res.status(400).json({ message: 'Not enough seats available in this pool' });
+        }
+
+        const newRequest = {
+            riderId: req.session.user.id,
+            riderName,
+            riderPhone,
+            pickupLocation,
+            dropLocation,
+            numberOfPersons: parsedNumberOfPersons,
+            requestNote,
+            status: 'Pending'
+        };
 
         pool.requests.push(newRequest);
         await pool.save();
 
+        const request = new RequestRide(newRequest);
+        await request.save();
+
         res.status(201).json({ message: 'Request created successfully', request });
     } catch (error) {
+        console.error('Error creating request:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -308,9 +371,6 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
         res.status(500).json({ error: error.message });
     }
 });
-
-
-
 
 // Get requests for a specific user
 app.get('/api/users/:userId/requests', requireLogin, async (req, res) => {
