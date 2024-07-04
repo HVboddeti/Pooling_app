@@ -13,6 +13,11 @@ const requestSchema = new mongoose.Schema({
     riderPhone: String,
     pickupLocation: String,
     dropLocation: String,
+    numberOfPersons: {
+        type: Number,
+        required: true,
+        min: 1
+    },
     requestNote: String,
     status: {
         type: String,

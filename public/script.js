@@ -64,6 +64,7 @@ async function navigateTo(page) {
                             <input type="text" id="riderPhone" name="riderPhone" placeholder="Phone" required>
                             <input type="text" id="pickupLocation" name="pickupLocation" placeholder="Pickup Location" required>
                             <input type="text" id="dropLocation" name="dropLocation" placeholder="Drop Location" required>
+                            <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
                             <textarea id="requestNote" name="requestNote" placeholder="Request Note"></textarea>
                             <button type="submit">Request Ride</button>
                         </form>
@@ -501,6 +502,7 @@ async function navigateTo(page) {
     
     
     
+    
 
     async function signup(event) {
         event.preventDefault();
@@ -686,7 +688,7 @@ async function createPool(event) {
 }
 
 
-
+//Requesting a ride
 async function requestRide(event) {
     event.preventDefault();
     const poolId = document.getElementById('pool').value;
@@ -694,7 +696,13 @@ async function requestRide(event) {
     const riderPhone = document.getElementById('riderPhone').value;
     const pickupLocation = document.getElementById('pickupLocation').value;
     const dropLocation = document.getElementById('dropLocation').value;
+    const numberOfPersons = parseInt(document.getElementById('numberOfPersons').value);
     const requestNote = document.getElementById('requestNote').value;
+
+    if (isNaN(numberOfPersons) || numberOfPersons <= 0) {
+        alert('Please enter a valid number of persons');
+        return;
+    }
 
     try {
         const response = await fetch(`/api/pools/${poolId}/requests`, {
@@ -702,7 +710,7 @@ async function requestRide(event) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ riderName, riderPhone, pickupLocation, dropLocation, requestNote }),
+            body: JSON.stringify({ riderName, riderPhone, pickupLocation, dropLocation, numberOfPersons, requestNote }),
         });
 
         if (response.ok) {
