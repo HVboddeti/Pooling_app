@@ -4,21 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carpooling Service</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="background-overlay"></div>
     <video autoplay muted loop id="background-video">
         <source src="video.mp4" type="video/mp4">
     </video>
     <header>
-        <div class="logo">Carpooling Service</div>
+        <a href="#" onclick="navigateTo('home')">
+            <img src="Picture1.png" alt="Carpooling Service Logo" class="logo">
+        </a>
         <nav>
             <button onclick="navigateTo('home')">Home</button>
             <button onclick="navigateTo('signup')">Sign Up</button>
             <button onclick="navigateTo('login')">Login</button>
         </nav>
     </header>
-    <main id="content"></main>
+    <main id="content">
+        <section id="home">
+            <h1>Welcome to Carpooling Service</h1>
+            <p>Connect with drivers and riders for a shared ride experience.</p>
+            <div class="cta-buttons">
+                <a href="#" class="cta-button" onclick="navigateTo('create-pool')">Create Pool</a>
+                <a href="#" class="cta-button" onclick="navigateTo('request-ride')">Request Ride</a>
+            </div>
+        </section>
+    </main>
     <script src="script.js"></script>
 </body>
 </html>
