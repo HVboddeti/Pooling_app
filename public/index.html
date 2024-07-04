@@ -7,18 +7,18 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <video autoplay muted loop id="background-video">
+        <source src="video.mp4" type="video/mp4">
+    </video>
     <header>
         <div class="logo">Carpooling Service</div>
         <nav>
-            <ul id="nav-links">
-                <!-- Navigation links will be dynamically added here -->
-            </ul>
+            <button onclick="navigateTo('home')">Home</button>
+            <button onclick="navigateTo('signup')">Sign Up</button>
+            <button onclick="navigateTo('login')">Login</button>
         </nav>
     </header>
     <main id="content"></main>
-    <footer>
-        <p>&copy; 2024 Carpooling Service. All rights reserved.</p>
-    </footer>
     <script src="script.js"></script>
 </body>
 </html>
