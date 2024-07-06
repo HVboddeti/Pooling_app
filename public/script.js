@@ -202,36 +202,36 @@ async function navigateTo(page) {
                 const pools = await poolStatusResponse.json();
     
                 content.innerHTML = `
-                    <section id="pool-status">
-                        <h2>Pool Status</h2>
-                        <ul id="poolStatusList">
-                            ${pools.map(pool => {
-                                const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
-                                return `
-                                    <li>
-                                        <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
-                                        <br>Seats Available: <span class="seats-available">${pool.seats}</span>
-                                        <br>Requests:
-                                        <ul>
-                                            ${pool.requests.length > 0 ? pool.requests.map(request => `
-                                                <li>
-                                                    Rider: ${request.riderName} (${request.riderPhone})<br>
-                                                    From: ${request.pickupLocation}<br>
-                                                    To: ${request.dropLocation}<br>
-                                                    Status: <span class="request-status">${request.status}</span>
-                                                    ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
-                                                </li>
-                                            `).join('') : 'No requests yet'}
-                                        </ul>
-                                        <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
-                                        ${!hasAcceptedRequest ? `<button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>` : ''}
-                                        <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
-                                    </li>
-                                `;
-                            }).join('')}
+    <section id="pool-status">
+        <h2>Pool Status</h2>
+        <ul id="poolStatusList">
+            ${pools.map(pool => {
+                const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
+                return `
+                    <li data-pool-id="${pool._id}">
+                        <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
+                        <br>Seats Available: <span class="seats-available">${pool.seats}</span>
+                        <br>Requests:
+                        <ul>
+                            ${pool.requests.length > 0 ? pool.requests.map(request => `
+                                <li data-request-id="${request._id}">
+                                    Rider: ${request.riderName} (${request.riderPhone})<br>
+                                    From: ${request.pickupLocation}<br>
+                                    To: ${request.dropLocation}<br>
+                                    Status: <span class="request-status">${request.status}</span>
+                                    ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
+                                </li>
+                            `).join('') : 'No requests yet'}
                         </ul>
-                    </section>
+                        <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
+                        ${!hasAcceptedRequest ? `<button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>` : ''}
+                        <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
+                    </li>
                 `;
+            }).join('')}
+        </ul>
+    </section>
+`;
     
                 // Add event listeners for buttons
                 pools.forEach(pool => {
@@ -283,7 +283,6 @@ async function navigateTo(page) {
     }
 
 
-
     async function fetchRideHistory(userId) {
         try {
             console.log(`Fetching ride history for user: ${userId}`);
@@ -315,9 +314,6 @@ async function navigateTo(page) {
             alert(`Failed to fetch ride history: ${error.message}`);
         }
     }
-
-
-
 
 
     async function updateNavLinks(loggedInUser, currentPage) {
@@ -425,7 +421,6 @@ async function navigateTo(page) {
 
     
 
-
     
     async function acceptRequest(requestId, poolId) {
         try {
@@ -440,81 +435,72 @@ async function navigateTo(page) {
     
             console.log(`Response status: ${response.status}`);
     
+            const result = await response.json();
+    
             if (!response.ok) {
-                const errorData = await response.json();
-                console.error('Error response data:', errorData);
-                throw new Error(`Failed to accept request. HTTP status ${response.status}`);
+                console.error('Error response data:', result);
+                throw new Error(result.message || `Failed to accept request. HTTP status ${response.status}`);
             }
     
-            const result = await response.json();
             console.log('Accept request result:', result);
     
-            // Update the frontend display after accepting the request
-            const poolElement = document.querySelector(`li[data-pool-id="${poolId}"]`);
-            if (!poolElement) {
-                console.warn(`Pool element not found for poolId: ${poolId}`);
-                return;
-            }
-    
-            const requestListItem = document.querySelector(`li[data-request-id="${requestId}"]`);
-            if (!requestListItem) {
-                console.warn(`Request list item not found for requestId: ${requestId}`);
-                return;
-            }
-    
-            const statusElement = requestListItem.querySelector('.request-status');
-            const seatsElement = poolElement.querySelector('.seats-available');
-            
-            if (statusElement) {
-                statusElement.textContent = 'Accepted';
-            }
-    
-            // Remove the Accept button
-            const acceptButton = requestListItem.querySelector(`button[data-action="accept"]`);
-            if (acceptButton) {
-                acceptButton.remove();
-            }
-    
-            // Update seats available
-            if (seatsElement) {
-                seatsElement.textContent = result.remainingSeats;
-            }
-    
-            // If the pool was completed, remove it from the list
-            if (result.poolCompleted) {
-                alert('Pool completed and moved to history as all seats are filled');
-                poolElement.remove();
-            } else {
-                // Update the delete button visibility
-                const deleteButton = poolElement.querySelector(`button[data-action="delete"]`);
-                if (deleteButton) {
-                    deleteButton.style.display = 'none';
-                }
-            }
-    
-            // Refresh the user's requests in the 'My Requests' tab
-            if (loggedInUser && loggedInUser.id) {
-                await fetchUserRequests(loggedInUser.id);
-            } else {
-                console.warn('User ID not available, cannot refresh requests');
-            }
+            // Update the UI immediately
+            updateUIAfterAccept(requestId, poolId, result);
     
             // Optionally, refresh the available pools list
             await fetchAvailablePools();
     
         } catch (error) {
             console.error('Error accepting request:', error);
-            alert('Error accepting request. Please try again.');
+            alert(error.message || 'Error accepting request. Please try again.');
         }
     }
     
+    function updateUIAfterAccept(requestId, poolId, result) {
+        const poolElement = document.querySelector(`li[data-pool-id="${poolId}"]`);
+        if (!poolElement) {
+            console.warn(`Pool element not found for poolId: ${poolId}`);
+            return;
+        }
     
+        const requestElement = poolElement.querySelector(`li[data-request-id="${requestId}"]`);
+        if (!requestElement) {
+            console.warn(`Request element not found for requestId: ${requestId}`);
+            return;
+        }
     
+        // Update request status
+        const statusElement = requestElement.querySelector('.request-status');
+        if (statusElement) {
+            statusElement.textContent = 'Accepted';
+        }
     
+        // Remove the Accept button
+        const acceptButton = requestElement.querySelector(`button[id^="acceptButton_"]`);
+        if (acceptButton) {
+            acceptButton.remove();
+        }
     
+        // Update available seats
+        const seatsElement = poolElement.querySelector('.seats-available');
+        if (seatsElement) {
+            seatsElement.textContent = result.remainingSeats;
+        }
     
+        // Hide the delete button if there's an accepted request
+        const deleteButton = poolElement.querySelector(`button[id^="deleteButton_"]`);
+        if (deleteButton) {
+            deleteButton.style.display = 'none';
+        }
     
+        // If the pool was completed, remove it from the list
+        if (result.poolCompleted) {
+            alert('Pool completed and moved to history as all seats are filled');
+            poolElement.remove();
+        }
+    }
     
+
 
     async function signup(event) {
         event.preventDefault();

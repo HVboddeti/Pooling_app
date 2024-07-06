@@ -388,8 +388,14 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
             return res.status(400).json({ message: 'Invalid number of persons in request' });
         }
 
+        // Check if there are enough seats available
+        if (pool.seats < request.numberOfPersons) {
+            console.log('Not enough seats available');
+            return res.status(400).json({ message: 'Not enough seats available in the pool' });
+        }
+
         // Calculate new seats value
-        const newSeats = Math.max(0, pool.seats - request.numberOfPersons);
+        const newSeats = pool.seats - request.numberOfPersons;
         console.log('Calculated new seats:', newSeats);
 
         // Update pool using findOneAndUpdate to ensure atomic update
@@ -456,6 +462,9 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
         res.status(500).json({ error: error.message, stack: error.stack });
     }
 });
+
+
+
 
 // Get requests for a specific user
 app.get('/api/users/:userId/requests', requireLogin, async (req, res) => {
