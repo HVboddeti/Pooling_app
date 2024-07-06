@@ -826,45 +826,55 @@ async function userHasRequests(userId) {
 async function fetchUserRequests(userId) {
     try {
         const response = await fetch(`/api/users/${userId}/requests`);
-        if (response.ok) {
-            const requests = await response.json();
-            console.log('Fetched requests:', requests);  // Add this for debugging
-            const myRequestsList = document.getElementById('myRequestsList');
-            if (myRequestsList) {
-                myRequestsList.innerHTML = requests.map(request => {
-                    const deleteButton = request.status !== 'Accepted'
-                        ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}">Delete Request</button>`
-                        : '<span class="accepted-status">Accepted</span>';
-                    
-                    const formattedTime = request.time ? new Date(request.time).toLocaleString() : 'Time not set';
-                    
-                    return `
-                        <li>
-                            <strong>Request:</strong> Ride from ${request.pickupLocation} to ${request.dropLocation} at ${formattedTime}.
-                            <br>Status: ${request.status}
-                            <br>Driver: ${request.driverName || 'Not assigned'}
-                            <br>${deleteButton}
-                        </li>
-                    `;
-                }).join('');
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        }
 
-                // Add event listeners for delete buttons
-                requests.forEach(request => {
-                    if (request.status !== 'Accepted') {
-                        const deleteButton = document.getElementById(`deleteRequest_${request._id}`);
-                        if (deleteButton) {
-                            deleteButton.addEventListener('click', () => deleteRequest(request._id));
-                        }
+        const requests = await response.json();
+        console.log('Fetched requests:', requests);
+
+        const myRequestsList = document.getElementById('myRequestsList');
+        if (myRequestsList) {
+            myRequestsList.innerHTML = requests.map(request => {
+                const deleteButton = request.status !== 'Accepted'
+                    ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}">Delete Request</button>`
+                    : '<span class="accepted-status">Accepted</span>';
+                
+                const formattedTime = request.time && request.time !== 'Time not set' 
+                    ? new Date(request.time).toLocaleString() 
+                    : 'Time not set';
+                
+                const noteDisplay = request.note ? `<br><em>Note: ${request.note}</em>` : '';
+                
+                return `
+                    <li>
+                        <strong>Request:</strong> Ride from ${request.pickupLocation} to ${request.dropLocation}
+                        <br>Status: ${request.status}
+                        <br>Driver: ${request.driverName || 'Not assigned'}
+                        <br>Time: ${formattedTime}
+                        <br>Source: ${request.source}
+                        ${noteDisplay}
+                        <br>${deleteButton}
+                    </li>
+                `;
+            }).join('');
+
+            // Add event listeners for delete buttons
+            requests.forEach(request => {
+                if (request.status !== 'Accepted') {
+                    const deleteButton = document.getElementById(`deleteRequest_${request._id}`);
+                    if (deleteButton) {
+                        deleteButton.addEventListener('click', () => deleteRequest(request._id));
                     }
-                });
-            }
+                }
+            });
         } else {
-            console.error('Failed to fetch requests:', await response.text());
-            alert('Failed to fetch requests');
+            console.error('myRequestsList element not found');
         }
     } catch (error) {
         console.error('Error fetching requests:', error);
-        alert('Error fetching requests. Please try again.');
+        alert(`Error fetching requests: ${error.message}. Please try again.`);
     }
 }
 

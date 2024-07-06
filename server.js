@@ -278,18 +278,17 @@ app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
 
         const { riderName, riderPhone, pickupLocation, dropLocation, numberOfPersons, requestNote } = req.body;
         
-        // Ensure numberOfPersons is a valid number
         const parsedNumberOfPersons = parseInt(numberOfPersons);
         if (isNaN(parsedNumberOfPersons) || parsedNumberOfPersons <= 0) {
             return res.status(400).json({ message: 'Invalid number of persons' });
         }
 
-        // Check if there are enough seats available, but don't decrease them
         if (pool.seats < parsedNumberOfPersons) {
             return res.status(400).json({ message: 'Not enough seats available in this pool' });
         }
 
-        const newRequest = {
+        const newRequest = new RequestRide({
+            poolId: pool._id,
             riderId: req.session.user.id,
             riderName,
             riderPhone,
@@ -297,18 +296,19 @@ app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
             dropLocation,
             numberOfPersons: parsedNumberOfPersons,
             requestNote,
-            status: 'Pending'
-        };
+            status: 'Pending',
+            driverName: pool.driverName,
+            time: pool.time
+        });
+
+        await newRequest.save();
 
         pool.requests.push(newRequest);
         await pool.save();
 
-        const request = new RequestRide(newRequest);
-        await request.save();
+        console.log('New request created:', JSON.stringify(newRequest, null, 2));
 
-        console.log('New request created:', JSON.stringify(request, null, 2));
-
-        res.status(201).json({ message: 'Request created successfully', request });
+        res.status(201).json({ message: 'Request created successfully', request: newRequest });
     } catch (error) {
         console.error('Error creating request:', error);
         res.status(500).json({ error: error.message });
@@ -363,6 +363,7 @@ app.post('/api/pools/:poolId/requests', requireLogin, async (req, res) => {
 });
 
 // Accept a ride request
+// Accept a ride request
 app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (req, res) => {
     try {
         const { poolId, requestId } = req.params;
@@ -401,8 +402,8 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
         // Update pool using findOneAndUpdate to ensure atomic update
         const updatedPool = await AvailablePool.findOneAndUpdate(
             { _id: poolId, 'requests._id': requestId },
-            { 
-                $set: { 
+            {
+                $set: {
                     'requests.$.status': 'Accepted',
                     seats: newSeats
                 }
@@ -414,11 +415,10 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
             console.log('Failed to update pool');
             return res.status(500).json({ message: 'Failed to update pool' });
         }
-
         console.log('Updated pool:', updatedPool);
 
         // Update the RequestRide document
-        await RequestRide.findByIdAndUpdate(requestId, { 
+        await RequestRide.findByIdAndUpdate(requestId, {
             status: 'Accepted',
             driverName: updatedPool.driverName,
             time: updatedPool.time
@@ -470,47 +470,57 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
 app.get('/api/users/:userId/requests', requireLogin, async (req, res) => {
     try {
         const userId = req.params.userId;
+        console.log(`Fetching requests for user: ${userId}`);
+
         const userRequests = await RequestRide.find({ riderId: userId }).lean();
-        console.log('User Requests:', userRequests);  // Add this line for debugging
+        console.log(`Found ${userRequests.length} user requests`);
 
-        // Fetch the latest pool information for each request
         const updatedRequests = await Promise.all(userRequests.map(async (request) => {
-            console.log('Processing request:', request);  // Add this line for debugging
+            console.log(`Processing request: ${request._id}`);
 
-            const pool = await AvailablePool.findOne({ 'requests._id': request._id });
+            // Check AvailablePool
+            const pool = await AvailablePool.findById(request.poolId);
             if (pool) {
                 const poolRequest = pool.requests.id(request._id);
-                console.log('Found in AvailablePool:', pool, 'PoolRequest:', poolRequest);  // Add this line for debugging
+                console.log(`Request ${request._id} found in AvailablePool: ${pool._id}`);
                 return {
                     ...request,
                     status: poolRequest ? poolRequest.status : request.status,
                     driverName: pool.driverName,
-                    time: pool.time
+                    time: pool.time,
+                    source: 'AvailablePool'
                 };
             }
 
-            // If the pool is not found, it might have been moved to history
-            const historicalRide = await HistoricalRide.findOne({ 'requests._id': request._id });
+            // If not in AvailablePool, check HistoricalRide
+            const historicalRide = await HistoricalRide.findOne({ poolId: request.poolId });
             if (historicalRide) {
                 const historicalRequest = historicalRide.requests.find(r => r._id.toString() === request._id.toString());
-                console.log('Found in HistoricalRide:', historicalRide, 'HistoricalRequest:', historicalRequest);  // Add this line for debugging
+                console.log(`Request ${request._id} found in HistoricalRide: ${historicalRide._id}`);
                 return {
                     ...request,
                     status: historicalRequest ? historicalRequest.status : request.status,
                     driverName: historicalRide.driverName,
-                    time: historicalRide.time
+                    time: historicalRide.time,
+                    source: 'HistoricalRide'
                 };
             }
 
-            console.log('Request not found in AvailablePool or HistoricalRide:', request);  // Add this line for debugging
-            return request;
+            // If not found in either, return the original request
+            console.log(`Request ${request._id} not found in AvailablePool or HistoricalRide`);
+            return {
+                ...request,
+                source: 'RequestRide',
+                note: 'Request details not found in active or historical pools'
+            };
         }));
 
-        console.log('Updated requests:', updatedRequests);  // Add this line for debugging
+        console.log(`Returning ${updatedRequests.length} updated requests`);
+        console.log('Updated requests:', JSON.stringify(updatedRequests, null, 2));
         res.json(updatedRequests);
     } catch (error) {
         console.error('Error fetching user requests:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
 
