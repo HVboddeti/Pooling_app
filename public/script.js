@@ -435,8 +435,7 @@ async function navigateTo(page) {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ status: 'Accepted' })
+                }
             });
     
             console.log(`Response status: ${response.status}`);
@@ -451,8 +450,18 @@ async function navigateTo(page) {
             console.log('Accept request result:', result);
     
             // Update the frontend display after accepting the request
-            const poolElement = document.querySelector(`#deleteButton_${poolId}`).closest('li');
-            const requestListItem = document.querySelector(`#acceptButton_${requestId}`).closest('li');
+            const poolElement = document.querySelector(`li[data-pool-id="${poolId}"]`);
+            if (!poolElement) {
+                console.warn(`Pool element not found for poolId: ${poolId}`);
+                return;
+            }
+    
+            const requestListItem = document.querySelector(`li[data-request-id="${requestId}"]`);
+            if (!requestListItem) {
+                console.warn(`Request list item not found for requestId: ${requestId}`);
+                return;
+            }
+    
             const statusElement = requestListItem.querySelector('.request-status');
             const seatsElement = poolElement.querySelector('.seats-available');
             
@@ -461,21 +470,26 @@ async function navigateTo(page) {
             }
     
             // Remove the Accept button
-            const acceptButton = document.querySelector(`#acceptButton_${requestId}`);
+            const acceptButton = requestListItem.querySelector(`button[data-action="accept"]`);
             if (acceptButton) {
                 acceptButton.remove();
             }
     
             // Update seats available
             if (seatsElement) {
-                const currentSeats = parseInt(seatsElement.textContent) - 1;
-                seatsElement.textContent = currentSeats;
+                seatsElement.textContent = result.remainingSeats;
             }
     
             // If the pool was completed, remove it from the list
             if (result.poolCompleted) {
                 alert('Pool completed and moved to history as all seats are filled');
                 poolElement.remove();
+            } else {
+                // Update the delete button visibility
+                const deleteButton = poolElement.querySelector(`button[data-action="delete"]`);
+                if (deleteButton) {
+                    deleteButton.style.display = 'none';
+                }
             }
     
             // Refresh the user's requests in the 'My Requests' tab
@@ -493,8 +507,6 @@ async function navigateTo(page) {
             alert('Error accepting request. Please try again.');
         }
     }
-    
-    
     
     
     

@@ -23,28 +23,88 @@ mongoose.connect(connectionString, {
 });
 
 const poolSchema = new mongoose.Schema({
-    driverName: String,
-    driverPhone: String,
-    driverNote: String,
-    pickupLocation: String,
-    dropLocation: String,
-    time: String,
-    seats: Number,
+    driverName: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    driverPhone: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    driverNote: {
+        type: String,
+        trim: true
+    },
+    pickupLocation: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    dropLocation: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    time: {
+        type: Date,
+        required: true
+    },
+    seats: {
+        type: Number,
+        required: true,
+        min: 0,
+        validate: {
+            validator: Number.isInteger,
+            message: '{VALUE} is not an integer value for seats'
+        }
+    },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User' // Reference to the User model
+        ref: 'User',
+        required: true
     },
     requests: [
         {
             riderId: {
                 type: mongoose.Schema.Types.ObjectId,
-                ref: 'User' // Reference to the User model
+                ref: 'User',
+                required: true
             },
-            riderName: String,
-            riderPhone: String,
-            pickupLocation: String,
-            dropLocation: String,
-            requestNote: String,
+            riderName: {
+                type: String,
+                required: true,
+                trim: true
+            },
+            riderPhone: {
+                type: String,
+                required: true,
+                trim: true
+            },
+            pickupLocation: {
+                type: String,
+                required: true,
+                trim: true
+            },
+            dropLocation: {
+                type: String,
+                required: true,
+                trim: true
+            },
+            requestNote: {
+                type: String,
+                trim: true
+            },
+            numberOfPersons: {
+                type: Number,
+                required: true,
+                min: 1,
+                validate: {
+                    validator: Number.isInteger,
+                    message: '{VALUE} is not an integer value for number of persons'
+                }
+            },
             status: {
                 type: String,
                 enum: ['Pending', 'Accepted'],
@@ -52,8 +112,7 @@ const poolSchema = new mongoose.Schema({
             }
         }
     ]
-});
-
+}, { timestamps: true });
 
 const AvailablePool = mongoose.model('AvailablePool', poolSchema);
 
@@ -311,44 +370,69 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
 
         const pool = await AvailablePool.findById(poolId);
         if (!pool) {
-            console.log('Pool not found');
+            console.log(`Pool not found: ${poolId}`);
             return res.status(404).json({ message: 'Pool not found' });
         }
+        console.log('Current pool seats:', pool.seats);
 
         const request = pool.requests.id(requestId);
         if (!request) {
-            console.log('Request not found');
+            console.log(`Request not found in pool: ${requestId}`);
             return res.status(404).json({ message: 'Request not found' });
         }
+        console.log('Request numberOfPersons:', request.numberOfPersons);
 
-        request.status = 'Accepted';
-        pool.seats--;
-        await pool.save();
+        // Ensure numberOfPersons is a valid number
+        if (typeof request.numberOfPersons !== 'number' || isNaN(request.numberOfPersons) || request.numberOfPersons <= 0) {
+            console.log('Invalid numberOfPersons:', request.numberOfPersons);
+            return res.status(400).json({ message: 'Invalid number of persons in request' });
+        }
 
-         // Update the status in the RequestRide collection
-         await RequestRide.findByIdAndUpdate(requestId, { 
+        // Calculate new seats value
+        const newSeats = Math.max(0, pool.seats - request.numberOfPersons);
+        console.log('Calculated new seats:', newSeats);
+
+        // Update pool using findOneAndUpdate to ensure atomic update
+        const updatedPool = await AvailablePool.findOneAndUpdate(
+            { _id: poolId, 'requests._id': requestId },
+            { 
+                $set: { 
+                    'requests.$.status': 'Accepted',
+                    seats: newSeats
+                }
+            },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedPool) {
+            console.log('Failed to update pool');
+            return res.status(500).json({ message: 'Failed to update pool' });
+        }
+
+        console.log('Updated pool:', updatedPool);
+
+        // Update the RequestRide document
+        await RequestRide.findByIdAndUpdate(requestId, { 
             status: 'Accepted',
-            driverName: pool.driverName,
-            time: pool.time
+            driverName: updatedPool.driverName,
+            time: updatedPool.time
         });
-
-        console.log(`Request with ID: ${requestId} accepted`);
 
         let poolCompleted = false;
         // Check if seats are now 0
-        if (pool.seats === 0) {
+        if (updatedPool.seats === 0) {
             // Move pool to history
             const historicalRideData = {
-                poolId: pool._id,
-                driverName: pool.driverName,
-                driverPhone: pool.driverPhone,
-                driverNote: pool.driverNote,
-                pickupLocation: pool.pickupLocation,
-                dropLocation: pool.dropLocation,
-                time: new Date(pool.time),
-                seats: pool.seats,
-                createdBy: pool.createdBy,
-                requests: pool.requests
+                poolId: updatedPool._id,
+                driverName: updatedPool.driverName,
+                driverPhone: updatedPool.driverPhone,
+                driverNote: updatedPool.driverNote,
+                pickupLocation: updatedPool.pickupLocation,
+                dropLocation: updatedPool.dropLocation,
+                time: new Date(updatedPool.time),
+                seats: 0,
+                createdBy: updatedPool.createdBy,
+                requests: updatedPool.requests
             };
 
             const historicalRide = new HistoricalRide(historicalRideData);
@@ -356,19 +440,20 @@ app.patch('/api/pools/:poolId/requests/:requestId/accept', requireLogin, async (
 
             // Delete the pool from AvailablePool
             await AvailablePool.findByIdAndDelete(poolId);
-
             console.log(`Pool moved to history as seats became 0`);
             poolCompleted = true;
         }
 
-        res.json({ 
-            message: poolCompleted ? 'Request accepted and pool completed' : 'Request accepted successfully', 
-            request,
-            poolCompleted
+        res.json({
+            message: poolCompleted ? 'Request accepted and pool completed' : 'Request accepted successfully',
+            request: updatedPool.requests.id(requestId),
+            poolCompleted,
+            remainingSeats: updatedPool.seats
         });
+
     } catch (error) {
-        console.error('Error accepting request:', error);
-        res.status(500).json({ error: error.message });
+        console.error('Error in accept request route:', error);
+        res.status(500).json({ error: error.message, stack: error.stack });
     }
 });
 

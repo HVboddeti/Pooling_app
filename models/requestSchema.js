@@ -16,7 +16,11 @@ const requestSchema = new mongoose.Schema({
     numberOfPersons: {
         type: Number,
         required: true,
-        min: 1
+        min: 1,
+        validate: {
+            validator: Number.isInteger,
+            message: '{VALUE} is not an integer value for numberOfPersons'
+        }
     },
     requestNote: String,
     status: {
