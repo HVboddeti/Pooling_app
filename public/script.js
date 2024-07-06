@@ -93,20 +93,13 @@ async function navigateTo(page) {
             navigateTo('login');
         }
     } else if (page === 'available-pools') {
-        await fetchAvailablePools();
         content.innerHTML = `
             <section id="available-pools">
                 <h2>Available Pools</h2>
-                <ul id="availablePoolsList">
-                    ${pools.map((pool, index) => `
-                        <li>
-                            <strong>Pool ${index + 1}:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
-                            <br>Seats Available: ${pool.seats}
-                        </li>
-                    `).join('')}
-                </ul>
+                <ul id="availablePoolsList"></ul>
             </section>
         `;
+        await fetchAvailablePools();
         updateNavLinks(loggedInUser, 'available-pools');
 
     } else if (page === 'signup') {
@@ -739,30 +732,62 @@ async function requestRide(event) {
 
 async function fetchAvailablePools() {
     try {
+        console.log('Fetching available pools...');
         const response = await fetch('/api/pools');
+        console.log('Response status:', response.status);
         if (response.ok) {
             pools = await response.json();
+            console.log('Fetched pools:', pools);
             // Filter out pools with zero seats
             pools = pools.filter(pool => pool.seats > 0);
+            console.log('Filtered pools:', pools);
+            
+            // Group pools by route
+            const poolsByRoute = {};
+            pools.forEach(pool => {
+                const route = `${pool.pickupLocation} to ${pool.dropLocation}`;
+                if (!poolsByRoute[route]) {
+                    poolsByRoute[route] = [];
+                }
+                poolsByRoute[route].push(pool);
+            });
+            console.log('Pools by route:', poolsByRoute);
+
             const availablePoolsList = document.getElementById('availablePoolsList');
             if (availablePoolsList) {
-                availablePoolsList.innerHTML = pools.map(pool => {
-                    const requestStatus = pool.requests.find(req => req.riderName === loggedInUser.name);
-                    let statusText = '';
-                    if (requestStatus) {
-                        statusText = requestStatus.status === 'Accepted' ? 'Accepted' : 'Pending';
-                    }
+                availablePoolsList.innerHTML = Object.entries(poolsByRoute).map(([route, routePools]) => {
+                    const routeId = route.replace(/\s/g, '_');
                     return `
                         <li>
-                            <strong>${pool.driverName}</strong> is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
-                            <br>Seats Available: ${pool.seats}
-                            <br>Status: ${statusText}
-                            ${requestStatus && requestStatus.status === 'Pending' ? `<button onclick="cancelRequest('${pool._id}', '${requestStatus._id}')">Cancel Request</button>` : ''}
+                            <h3>${route}</h3>
+                            <button id="toggleButton_${routeId}">Show Details</button>
+                            <ul id="${routeId}" style="display: none;">
+                                ${routePools.map(pool => `
+                                    <li>
+                                        <strong>${pool.driverName}</strong> is offering a ride at ${new Date(pool.time).toLocaleString()}.
+                                        <br>Seats Available: ${pool.seats}
+                                        <br>Driver Phone: ${pool.driverPhone}
+                                        <br>Driver Note: ${pool.driverNote || 'N/A'}
+                                    </li>
+                                `).join('')}
+                            </ul>
                         </li>
                     `;
                 }).join('');
+
+                // Add event listeners to toggle buttons
+                Object.keys(poolsByRoute).forEach(route => {
+                    const routeId = route.replace(/\s/g, '_');
+                    const toggleButton = document.getElementById(`toggleButton_${routeId}`);
+                    if (toggleButton) {
+                        toggleButton.addEventListener('click', () => toggleRouteDetails(routeId));
+                    }
+                });
+            } else {
+                console.error('availablePoolsList element not found');
             }
         } else {
+            console.error('Failed to fetch pools:', await response.text());
             alert('Failed to fetch pools');
         }
     } catch (error) {
@@ -770,6 +795,19 @@ async function fetchAvailablePools() {
     }
 }
 
+function toggleRouteDetails(routeId) {
+    const routeElement = document.getElementById(routeId);
+    if (routeElement) {
+        const isHidden = routeElement.style.display === 'none';
+        routeElement.style.display = isHidden ? 'block' : 'none';
+        
+        // Update button text
+        const toggleButton = document.getElementById(`toggleButton_${routeId}`);
+        if (toggleButton) {
+            toggleButton.textContent = isHidden ? 'Hide Details' : 'Show Details';
+        }
+    }
+}
 
 
 async function userHasRequests(userId) {
@@ -790,11 +828,12 @@ async function fetchUserRequests(userId) {
         const response = await fetch(`/api/users/${userId}/requests`);
         if (response.ok) {
             const requests = await response.json();
+            console.log('Fetched requests:', requests);  // Add this for debugging
             const myRequestsList = document.getElementById('myRequestsList');
             if (myRequestsList) {
                 myRequestsList.innerHTML = requests.map(request => {
                     const deleteButton = request.status !== 'Accepted'
-                        ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}" onclick="deleteRequest('${request._id}')">Delete Request</button>`
+                        ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}">Delete Request</button>`
                         : '<span class="accepted-status">Accepted</span>';
                     
                     const formattedTime = request.time ? new Date(request.time).toLocaleString() : 'Time not set';
@@ -814,9 +853,7 @@ async function fetchUserRequests(userId) {
                     if (request.status !== 'Accepted') {
                         const deleteButton = document.getElementById(`deleteRequest_${request._id}`);
                         if (deleteButton) {
-                            deleteButton.addEventListener('click', () => {
-                                deleteRequest(request._id);
-                            });
+                            deleteButton.addEventListener('click', () => deleteRequest(request._id));
                         }
                     }
                 });

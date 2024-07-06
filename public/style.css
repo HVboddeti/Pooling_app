@@ -162,3 +162,24 @@ footer {
         margin-top: 20px;
     }
 }
+
+
+#availablePoolsList > li {
+    margin-bottom: 20px;
+}
+
+#availablePoolsList > li > h3 {
+    display: inline-block;
+    margin-right: 10px;
+}
+
+#availablePoolsList > li > ul {
+    margin-top: 10px;
+}
+
+#availablePoolsList > li > ul > li {
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
