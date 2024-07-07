@@ -7,6 +7,7 @@ const session = require('express-session');
 const User = require('./models/User');
 const RequestRide = require('./models/requestSchema'); // Import the RequestRide model
 const HistoricalRide = require('./models/history');
+const schedule = require('node-schedule');
 
 
 const app = express();
@@ -634,6 +635,7 @@ app.post('/api/pools/:poolId/complete', requireLogin, async (req, res) => {
             time: new Date(pool.time),
             seats: pool.seats || 0,
             createdBy: pool.createdBy,
+            createdAt: new Date(),
             requests: (pool.requests || []).map(request => ({
                 riderId: request.riderId,
                 riderName: request.riderName || '',
@@ -731,7 +733,108 @@ app.put('/api/pools/:poolId', requireLogin, async (req, res) => {
 });
 
 
+// Schedule a job to run every hour
+const job = schedule.scheduleJob('0 * * * *', async function() {
+    console.log('Running scheduled task to delete old historical rides');
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    try {
+      const result = await HistoricalRide.deleteMany({ createdAt: { $lt: twentyFourHoursAgo } });
+      console.log(`Deleted ${result.deletedCount} historical rides older than 24 hours`);
+    } catch (error) {
+      console.error('Error deleting old historical rides:', error);
+    }
+  });
 
+
+
+  // Handle custom ride requests
+app.post('/api/custom-requests', requireLogin, async (req, res) => {
+    try {
+        const { riderName, riderPhone, pickupLocation, dropLocation, numberOfPersons, requestNote } = req.body;
+        
+        const newRequest = new RequestRide({
+            riderId: req.session.user.id,
+            riderName,
+            riderPhone,
+            pickupLocation,
+            dropLocation,
+            numberOfPersons,
+            requestNote,
+            status: 'Pending',
+            isCustomRequest: true
+        });
+
+        await newRequest.save();
+
+        res.status(201).json({ message: 'Custom ride request created successfully', request: newRequest });
+    } catch (error) {
+        console.error('Error creating custom request:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+app.get('/api/custom-requests', requireLogin, async (req, res) => {
+    try {
+        const customRequests = await RequestRide.find({ 
+            isCustomRequest: true, 
+            status: 'Pending',
+            riderId: req.session.user.id
+        });
+        console.log('Custom requests fetched:', customRequests);
+        res.json(customRequests);
+    } catch (error) {
+        console.error('Error fetching custom requests:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+app.post('/api/custom-requests/:requestId/accept', requireLogin, async (req, res) => {
+    try {
+        const { requestId } = req.params;
+        const userId = req.session.user.id;
+
+        const request = await RequestRide.findById(requestId);
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Create a new pool based on the custom request
+        const newPool = new AvailablePool({
+            driverName: req.session.user.name, // You might want to store user's name in the session
+            driverPhone: '', // You might want to get this from the user's profile
+            pickupLocation: request.pickupLocation,
+            dropLocation: request.dropLocation,
+            time: new Date(), // You might want to set this to a future date
+            seats: request.numberOfPersons,
+            createdBy: userId,
+            requests: [{
+                riderId: request.riderId,
+                riderName: request.riderName,
+                riderPhone: request.riderPhone,
+                pickupLocation: request.pickupLocation,
+                dropLocation: request.dropLocation,
+                numberOfPersons: request.numberOfPersons,
+                requestNote: request.requestNote,
+                status: 'Accepted'
+            }]
+        });
+
+        await newPool.save();
+
+        // Update the custom request
+        request.status = 'Accepted';
+        request.assignedPoolId = newPool._id;
+        await request.save();
+
+        res.json({ message: 'Custom request accepted successfully', request, pool: newPool });
+    } catch (error) {
+        console.error('Error accepting custom request:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 
 

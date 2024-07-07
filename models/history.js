@@ -17,7 +17,8 @@ const historicalRideSchema = new mongoose.Schema({
         pickupLocation: { type: String, required: false },
         dropLocation: { type: String, required: false },
         requestNote: { type: String, required: false },
-        status: { type: String, required: false }
+        status: { type: String, required: false },
+        createdAt: { type: Date, default: Date.now }
     }]
 }, { strict: false });
 

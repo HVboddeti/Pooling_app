@@ -9,6 +9,7 @@ const requestSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User' // Reference to the User model
     },
+    
     riderName: String,
     riderPhone: String,
     pickupLocation: String,
@@ -29,7 +30,16 @@ const requestSchema = new mongoose.Schema({
         default: 'Pending'
     },
     driverName: String,
-    time: Date
-});
+    time: Date,
+    isCustomRequest: {
+        type: Boolean,
+        default: false
+      },
+      assignedPoolId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'AvailablePool',
+        default: null
+      }
+    }, { timestamps: true });
 
 module.exports = mongoose.model('RequestRide', requestSchema);

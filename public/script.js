@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let pools = [];
 
-async function navigateTo(page) {
+async function navigateTo(page, routeId = null) {
     const content = document.getElementById('content');
     content.innerHTML = '';
 
@@ -18,12 +18,9 @@ async function navigateTo(page) {
                 <div class="home-buttons">
                     ${loggedInUser ? `
                         <button onclick="navigateTo('create-pool')">Create Pool</button>
-                        <button onclick="navigateTo('request-ride')">Request Ride</button>
                         <button onclick="navigateTo('available-pools')">Available Pools</button>
-                        
                     ` : `
                         <button onclick="navigateTo('create-pool')">Create Pool</button>
-                        <button onclick="navigateTo('request-ride')">Request Ride</button>
                     `}
                 </div>
             </section>
@@ -54,30 +51,33 @@ async function navigateTo(page) {
         }
     } else if (page === 'request-ride') {
         if (loggedInUser) {
+            let pickupLocation = '';
+            let dropLocation = '';
+            if (routeId !== 'other') {
+                const route = routeId.replace(/_/g, ' ');
+                [pickupLocation, dropLocation] = route.split(' to ');
+            }
             content.innerHTML = `
-                <section id="request-ride" style="display: flex;">
-                    <div style="flex: 1;">
-                        <h2>Request a Ride</h2>
-                        <form id="requestRideForm">
+                <section id="request-ride">
+                    <h2>Request a Ride</h2>
+                    <form id="requestRideForm">
+                        ${routeId !== 'other' ? `
                             <select id="pool" name="pool" required></select>
-                            <input type="text" id="riderName" name="riderName" placeholder="Name" required>
-                            <input type="text" id="riderPhone" name="riderPhone" placeholder="Phone" required>
-                            <input type="text" id="pickupLocation" name="pickupLocation" placeholder="Pickup Location" required>
-                            <input type="text" id="dropLocation" name="dropLocation" placeholder="Drop Location" required>
-                            <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
-                            <textarea id="requestNote" name="requestNote" placeholder="Request Note"></textarea>
-                            <button type="submit">Request Ride</button>
-                        </form>
-                    </div>
-                    <div style="flex: 1;">
-                        <h2>Available Pools</h2>
-                        <ul id="availablePools"></ul>
-                    </div>
+                        ` : ''}
+                        <input type="text" id="riderName" name="riderName" placeholder="Name" required>
+                        <input type="text" id="riderPhone" name="riderPhone" placeholder="Phone" required>
+                        <input type="text" id="pickupLocation" name="pickupLocation" value="${pickupLocation}" placeholder="Pickup Location" required>
+                        <input type="text" id="dropLocation" name="dropLocation" value="${dropLocation}" placeholder="Drop Location" required>
+                        <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
+                        <textarea id="requestNote" name="requestNote" placeholder="Request Note"></textarea>
+                        <button type="submit">Request Ride</button>
+                    </form>
                 </section>
             `;
             document.getElementById('requestRideForm').addEventListener('submit', requestRide);
-            await fetchAvailablePools();
-            await populatePoolOptions();
+            if (routeId !== 'other') {
+                await populatePoolOptions(routeId);
+            }
             updateNavLinks(loggedInUser, 'request-ride');
 
             const availablePoolsElement = document.getElementById('availablePools');
@@ -190,64 +190,108 @@ async function navigateTo(page) {
         }
     } else if (page === 'pool-status') {
         if (loggedInUser) {
-            const poolStatusResponse = await fetch(`/api/pools?createdBy=${loggedInUser.id}`);
-            if (poolStatusResponse.ok) {
+            try {
+                const [poolStatusResponse, customRequestsResponse] = await Promise.all([
+                    fetch(`/api/pools?createdBy=${loggedInUser.id}`),
+                    fetch('/api/custom-requests')
+                ]);
+                
+                if (!poolStatusResponse.ok || !customRequestsResponse.ok) {
+                    throw new Error('Failed to fetch data');
+                }
+    
                 const pools = await poolStatusResponse.json();
+                const customRequests = await customRequestsResponse.json();
+    
+                console.log('Fetched pools:', pools);
+                console.log('Fetched custom requests:', customRequests);
     
                 content.innerHTML = `
-    <section id="pool-status">
-        <h2>Pool Status</h2>
-        <ul id="poolStatusList">
-            ${pools.map(pool => {
-                const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
-                return `
-                    <li data-pool-id="${pool._id}">
-                        <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
-                        <br>Seats Available: <span class="seats-available">${pool.seats}</span>
-                        <br>Requests:
-                        <ul>
-                            ${pool.requests.length > 0 ? pool.requests.map(request => `
+                    <section id="pool-status">
+                        <h2>Pool Status</h2>
+                        <h3>Your Pools</h3>
+                        ${pools.length > 0 ? `
+                            <ul id="poolStatusList">
+                                ${pools.map(pool => {
+                                    const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
+                                    return `
+                                        <li data-pool-id="${pool._id}">
+                                            <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
+                                            <br>Seats Available: <span class="seats-available">${pool.seats}</span>
+                                            <br>Requests:
+                                            <ul>
+                                                ${pool.requests.length > 0 ? pool.requests.map(request => `
+                                                    <li data-request-id="${request._id}">
+                                                        Rider: ${request.riderName} (${request.riderPhone})<br>
+                                                        From: ${request.pickupLocation}<br>
+                                                        To: ${request.dropLocation}<br>
+                                                        Status: <span class="request-status">${request.status}</span>
+                                                        ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
+                                                    </li>
+                                                `).join('') : 'No requests yet'}
+                                            </ul>
+                                            <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
+                                            ${!hasAcceptedRequest ? `<button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>` : ''}
+                                            <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
+                                        </li>
+                                    `;
+                                }).join('')}
+                            </ul>
+                        ` : '<p>You have not created any pools yet.</p>'}
+                        <button onclick="navigateTo('create-pool')">Create New Pool</button>
+                        <h3>Custom Requests</h3>
+                        <ul id="customRequestsList">
+                            ${customRequests.length > 0 ? customRequests.map(request => `
                                 <li data-request-id="${request._id}">
                                     Rider: ${request.riderName} (${request.riderPhone})<br>
                                     From: ${request.pickupLocation}<br>
                                     To: ${request.dropLocation}<br>
-                                    Status: <span class="request-status">${request.status}</span>
-                                    ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
+                                    Persons: ${request.numberOfPersons}<br>
+                                    Status: ${request.status}<br>
+                                    ${request.status === 'Pending' ? `<button id="acceptCustomButton_${request._id}" data-request-id="${request._id}">Accept Custom Request</button>` : ''}
                                 </li>
-                            `).join('') : 'No requests yet'}
+                            `).join('') : '<li>No custom requests available</li>'}
                         </ul>
-                        <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
-                        ${!hasAcceptedRequest ? `<button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>` : ''}
-                        <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
-                    </li>
+                    </section>
                 `;
-            }).join('')}
-        </ul>
-    </section>
-`;
     
-                // Add event listeners for buttons
-                pools.forEach(pool => {
-                    const editButton = document.getElementById(`editButton_${pool._id}`);
-                    editButton.addEventListener('click', () => editPool(pool));
+                // Add event listeners for pool buttons
+                if (pools.length > 0) {
+                    pools.forEach(pool => {
+                        const editButton = document.getElementById(`editButton_${pool._id}`);
+                        editButton.addEventListener('click', () => editPool(pool));
     
-                    const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
-                    if (!hasAcceptedRequest) {
-                        const deleteButton = document.getElementById(`deleteButton_${pool._id}`);
-                        deleteButton.addEventListener('click', () => deletePool(pool._id));
-                    }
-    
-                    const completeButton = document.getElementById(`completeButton_${pool._id}`);
-                    completeButton.addEventListener('click', () => completePool(pool._id));
-    
-                    pool.requests.forEach(request => {
-                        if (request.status === 'Pending') {
-                            const acceptButton = document.getElementById(`acceptButton_${request._id}`);
-                            acceptButton.addEventListener('click', () => acceptRequest(request._id, pool._id));
+                        const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
+                        if (!hasAcceptedRequest) {
+                            const deleteButton = document.getElementById(`deleteButton_${pool._id}`);
+                            deleteButton.addEventListener('click', () => deletePool(pool._id));
                         }
+    
+                        const completeButton = document.getElementById(`completeButton_${pool._id}`);
+                        completeButton.addEventListener('click', () => completePool(pool._id));
+    
+                        pool.requests.forEach(request => {
+                            if (request.status === 'Pending') {
+                                const acceptButton = document.getElementById(`acceptButton_${request._id}`);
+                                acceptButton.addEventListener('click', () => acceptRequest(request._id, pool._id));
+                            }
+                        });
                     });
+                }
+    
+                // Add event listeners for custom request buttons
+                customRequests.forEach(request => {
+                    if (request.status === 'Pending') {
+                        const acceptCustomButton = document.getElementById(`acceptCustomButton_${request._id}`);
+                        acceptCustomButton.addEventListener('click', () => acceptCustomRequest(request._id));
+                    }
                 });
+            } catch (error) {
+                console.error('Error fetching pool status or custom requests:', error);
+                content.innerHTML = '<p>Error loading pool status and custom requests. Please try again later.</p>';
             }
+        } else {
+            navigateTo('login');
         }
     }
 
@@ -314,13 +358,13 @@ async function navigateTo(page) {
         navLinks.innerHTML = '';
     
         const hasRequests = await userHasRequests(loggedInUser?.id);
-        const hasCreatedPools = await userHasCreatedPools(loggedInUser?.id); // Check if user has created pools
+        const hasCreatedPoolsOrCustomRequests = await userHasCreatedPoolsOrCustomRequests(loggedInUser?.id);
     
         if (loggedInUser) {
             navLinks.innerHTML = `
                 <li><a href="#" onclick="navigateTo('home')" ${currentPage === 'home' ? 'class="active"' : ''}>Home</a></li>
                 ${hasRequests ? `<li><a href="#" onclick="navigateTo('my-requests')" ${currentPage === 'my-requests' ? 'class="active"' : ''}>My Requests</a></li>` : ''}
-                ${hasCreatedPools ? `<li><a href="#" onclick="navigateTo('pool-status')" ${currentPage === 'pool-status' ? 'class="active"' : ''}>Pool Status</a></li>` : ''}
+                ${hasCreatedPoolsOrCustomRequests ? `<li><a href="#" onclick="navigateTo('pool-status')" ${currentPage === 'pool-status' ? 'class="active"' : ''}>Pool Status</a></li>` : ''}
                 <li><a href="#" id="history-link" ${currentPage === 'history' ? 'class="active"' : ''}>History</a></li>
                 <li><a href="#" onclick="navigateTo('user-info')" ${currentPage === 'user-info' ? 'class="active"' : ''}>User Info</a></li>
                 <li><a href="#" data-user-id="${loggedInUser.id}" id="logout-link">Sign Out</a></li>
@@ -542,7 +586,23 @@ async function navigateTo(page) {
     }
     
 
-    
+    async function userHasCreatedPoolsOrCustomRequests(userId) {
+        try {
+            const [poolsResponse, customRequestsResponse] = await Promise.all([
+                fetch(`/api/pools?createdBy=${userId}`),
+                fetch('/api/custom-requests')
+            ]);
+            
+            if (poolsResponse.ok && customRequestsResponse.ok) {
+                const pools = await poolsResponse.json();
+                const customRequests = await customRequestsResponse.json();
+                return pools.length > 0 || customRequests.length > 0;
+            }
+        } catch (error) {
+            console.error('Error checking user created pools or custom requests:', error);
+        }
+        return false;
+    }
     
     
 
@@ -682,7 +742,7 @@ async function createPool(event) {
 //Requesting a ride
 async function requestRide(event) {
     event.preventDefault();
-    const poolId = document.getElementById('pool').value;
+    const poolId = document.getElementById('pool')?.value || 'custom';
     const riderName = document.getElementById('riderName').value;
     const riderPhone = document.getElementById('riderPhone').value;
     const pickupLocation = document.getElementById('pickupLocation').value;
@@ -696,25 +756,36 @@ async function requestRide(event) {
     }
 
     try {
-        const response = await fetch(`/api/pools/${poolId}/requests`, {
+        const endpoint = poolId === 'custom' ? '/api/custom-requests' : `/api/pools/${poolId}/requests`;
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ riderName, riderPhone, pickupLocation, dropLocation, numberOfPersons, requestNote }),
+            body: JSON.stringify({ 
+                riderName, 
+                riderPhone, 
+                pickupLocation, 
+                dropLocation, 
+                numberOfPersons, 
+                requestNote,
+                isCustomRequest: poolId === 'custom' // Add this line
+            }),
         });
 
         if (response.ok) {
             const requestData = await response.json();
             alert('Ride requested successfully');
             
-            // Check if the pool's seat count has become zero
-            const updatedPoolResponse = await fetch(`/api/pools/${poolId}`);
-            if (updatedPoolResponse.ok) {
-                const updatedPool = await updatedPoolResponse.json();
-                if (updatedPool.seats === 0) {
-                    // Move the pool to history
-                    await completePool(poolId);
+            if (poolId !== 'custom') {
+                // Check if the pool's seat count has become zero
+                const updatedPoolResponse = await fetch(`/api/pools/${poolId}`);
+                if (updatedPoolResponse.ok) {
+                    const updatedPool = await updatedPoolResponse.json();
+                    if (updatedPool.seats === 0) {
+                        // Move the pool to history
+                        await completePool(poolId);
+                    }
                 }
             }
             
@@ -761,6 +832,7 @@ async function fetchAvailablePools() {
                         <li>
                             <h3>${route}</h3>
                             <button id="toggleButton_${routeId}">Show Details</button>
+                            <button onclick="navigateTo('request-ride', '${routeId}')">Request Ride</button>
                             <ul id="${routeId}" style="display: none;">
                                 ${routePools.map(pool => `
                                     <li>
@@ -773,7 +845,12 @@ async function fetchAvailablePools() {
                             </ul>
                         </li>
                     `;
-                }).join('');
+                }).join('') + `
+                    <li>
+                        <h3>Other</h3>
+                        <button onclick="navigateTo('request-ride', 'other')">Request Custom Ride</button>
+                    </li>
+                `;
 
                 // Add event listeners to toggle buttons
                 Object.keys(poolsByRoute).forEach(route => {
@@ -903,14 +980,20 @@ async function deleteRequest(requestId) {
 }
 
 
-async function populatePoolOptions() {
+async function populatePoolOptions(routeId) {
     const poolSelect = document.getElementById('pool');
     if (poolSelect) {
-        // Filter out pools with zero seats
-        const availablePools = pools.filter(pool => pool.seats > 0);
+        const route = routeId.replace(/_/g, ' ');
+        const [pickupLocation, dropLocation] = route.split(' to ');
+        // Filter pools based on the selected route and available seats
+        const availablePools = pools.filter(pool => 
+            pool.seats > 0 && 
+            pool.pickupLocation === pickupLocation && 
+            pool.dropLocation === dropLocation
+        );
         poolSelect.innerHTML = availablePools.map((pool, index) => `
             <option value="${pool._id}">
-                Pool ${index + 1}: ${pool.driverName} - ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}
+                Pool ${index + 1}: ${pool.driverName} - ${new Date(pool.time).toLocaleString()} (${pool.seats} seats)
             </option>
         `).join('');
     }
@@ -964,6 +1047,31 @@ async function userHasCreatedPools(userId) {
     return false;
 }
 
+
+
+async function acceptCustomRequest(requestId) {
+    try {
+        const response = await fetch(`/api/custom-requests/${requestId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            alert('Custom request accepted successfully');
+            navigateTo('pool-status'); // Refresh the pool status
+        } else {
+            const errorData = await response.json();
+            alert(`Failed to accept request: ${errorData.message}`);
+        }
+    } catch (error) {
+        console.error('Error accepting custom request:', error);
+        alert('Failed to accept custom request. Please try again.');
+    }
+}
 
 
 
