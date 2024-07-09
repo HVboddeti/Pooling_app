@@ -914,23 +914,22 @@ async function fetchUserRequests(userId) {
         const myRequestsList = document.getElementById('myRequestsList');
         if (myRequestsList) {
             myRequestsList.innerHTML = requests.map(request => {
+                let driverName = request.driverName || 'Not assigned';
+                let formattedTime = request.time ? new Date(request.time).toLocaleString() : 'Time not set';
+                
                 const deleteButton = request.status !== 'Accepted'
                     ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}">Delete Request</button>`
                     : '<span class="accepted-status">Accepted</span>';
                 
-                const formattedTime = request.time && request.time !== 'Time not set' 
-                    ? new Date(request.time).toLocaleString() 
-                    : 'Time not set';
-                
-                const noteDisplay = request.note ? `<br><em>Note: ${request.note}</em>` : '';
+                const noteDisplay = request.requestNote ? `<br><em>Note: ${request.requestNote}</em>` : '';
                 
                 return `
                     <li>
                         <strong>Request:</strong> Ride from ${request.pickupLocation} to ${request.dropLocation}
                         <br>Status: ${request.status}
-                        <br>Driver: ${request.driverName || 'Not assigned'}
+                        <br>Driver: ${driverName}
                         <br>Time: ${formattedTime}
-                        <br>Source: ${request.source}
+                        <br>Source: ${request.source || (request.isCustomRequest ? 'Custom Request' : 'Unknown')}
                         ${noteDisplay}
                         <br>${deleteButton}
                     </li>

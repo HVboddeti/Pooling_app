@@ -27,12 +27,14 @@ const poolSchema = new mongoose.Schema({
     driverName: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        default: 'Driver Name Not Provided'
     },
     driverPhone: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        default: 'Phone Not Provided'
     },
     driverNote: {
         type: String,
@@ -796,18 +798,39 @@ app.post('/api/custom-requests/:requestId/accept', requireLogin, async (req, res
         const { requestId } = req.params;
         const userId = req.session.user.id;
 
+        // Check if the user already has a pool with accepted requests
+        const existingPool = await AvailablePool.findOne({
+            createdBy: userId,
+            'requests.status': 'Accepted'
+        });
+
+        if (existingPool) {
+            return res.status(400).json({ message: 'You already have a pool with accepted requests. Cannot accept new custom requests.' });
+        }
+
         const request = await RequestRide.findById(requestId);
         if (!request) {
             return res.status(404).json({ message: 'Request not found' });
         }
 
+        // Fetch user information
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const driverName = user.firstName && user.lastName
+            ? `${user.firstName} ${user.lastName}`
+            : 'Driver Name Not Provided';
+        const poolTime = new Date(Date.now() + 24 * 60 * 60 * 1000); // Set to 24 hours from now, adjust as needed
+
         // Create a new pool based on the custom request
         const newPool = new AvailablePool({
-            driverName: req.session.user.name, // You might want to store user's name in the session
-            driverPhone: '', // You might want to get this from the user's profile
+            driverName: driverName,
+            driverPhone: user.mobileNumber || 'Phone Not Provided',
             pickupLocation: request.pickupLocation,
             dropLocation: request.dropLocation,
-            time: new Date(), // You might want to set this to a future date
+            time: poolTime,
             seats: request.numberOfPersons,
             createdBy: userId,
             requests: [{
@@ -827,6 +850,10 @@ app.post('/api/custom-requests/:requestId/accept', requireLogin, async (req, res
         // Update the custom request
         request.status = 'Accepted';
         request.assignedPoolId = newPool._id;
+        request.driverName = driverName;
+        request.time = poolTime;
+        request.source = 'AvailablePool';  // Add this line
+        request.isCustomRequest = false;  // Add this line
         await request.save();
 
         res.json({ message: 'Custom request accepted successfully', request, pool: newPool });
@@ -835,8 +862,6 @@ app.post('/api/custom-requests/:requestId/accept', requireLogin, async (req, res
         res.status(500).json({ error: error.message });
     }
 });
-
-
 
 
 
