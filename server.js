@@ -490,6 +490,8 @@ app.get('/api/users/:userId/requests', requireLogin, async (req, res) => {
                     ...request,
                     status: poolRequest ? poolRequest.status : request.status,
                     driverName: pool.driverName,
+                    driverPhone: pool.driverPhone,
+                    driverNote: pool.driverNote,
                     time: pool.time,
                     source: 'AvailablePool'
                 };
@@ -504,6 +506,8 @@ app.get('/api/users/:userId/requests', requireLogin, async (req, res) => {
                     ...request,
                     status: historicalRequest ? historicalRequest.status : request.status,
                     driverName: historicalRide.driverName,
+                    driverPhone: historicalRide.driverPhone,
+                    driverNote: historicalRide.driverNote,
                     time: historicalRide.time,
                     source: 'HistoricalRide'
                 };
@@ -603,8 +607,18 @@ app.delete('/api/requests/:requestId', requireLogin, async (req, res) => {
         if (!deletedRequest) {
             return res.status(404).json({ message: 'Request not found' });
         }
+
+        // Remove the request from the associated pool
+        if (deletedRequest.poolId) {
+            await AvailablePool.updateOne(
+                { _id: deletedRequest.poolId },
+                { $pull: { requests: { _id: requestId } } }
+            );
+        }
+
         res.json({ message: 'Request deleted successfully' });
     } catch (error) {
+        console.error('Error deleting request:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -822,12 +836,14 @@ app.post('/api/custom-requests/:requestId/accept', requireLogin, async (req, res
         const driverName = user.firstName && user.lastName
             ? `${user.firstName} ${user.lastName}`
             : 'Driver Name Not Provided';
+        const driverPhone = user.mobileNumber || 'Phone Not Provided';
         const poolTime = new Date(Date.now() + 24 * 60 * 60 * 1000); // Set to 24 hours from now, adjust as needed
 
         // Create a new pool based on the custom request
         const newPool = new AvailablePool({
             driverName: driverName,
-            driverPhone: user.mobileNumber || 'Phone Not Provided',
+            driverPhone: driverPhone,
+            driverNote: req.body.driverNote || '',
             pickupLocation: request.pickupLocation,
             dropLocation: request.dropLocation,
             time: poolTime,
@@ -851,9 +867,11 @@ app.post('/api/custom-requests/:requestId/accept', requireLogin, async (req, res
         request.status = 'Accepted';
         request.assignedPoolId = newPool._id;
         request.driverName = driverName;
+        request.driverPhone = driverPhone;
+        request.driverNote = req.body.driverNote || '';
         request.time = poolTime;
-        request.source = 'AvailablePool';  // Add this line
-        request.isCustomRequest = false;  // Add this line
+        request.source = 'AvailablePool';
+        request.isCustomRequest = false;
         await request.save();
 
         res.json({ message: 'Custom request accepted successfully', request, pool: newPool });

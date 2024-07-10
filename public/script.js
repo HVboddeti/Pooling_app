@@ -26,26 +26,34 @@ async function navigateTo(page, routeId = null) {
             </section>
         `;
         updateNavLinks(loggedInUser, 'home');
-    } else  if (page === 'create-pool') {
+    } else if (page === 'create-pool') {
         if (loggedInUser) {
-            // Allow pool creation
-            content.innerHTML = `
-                <section id="create-pool">
-                    <h2>Create a Car Pool</h2>
-                    <form id="createPoolForm">
-                        <input type="text" id="driverName" name="driverName" placeholder="Driver Name" required>
-                        <input type="text" id="driverPhone" name="driverPhone" placeholder="Driver Phone" required>
-                        <textarea id="driverNote" name="driverNote" placeholder="Driver Note"></textarea>
-                        <input type="text" id="pickupLocation" name="pickupLocation" placeholder="Pickup Location" required>
-                        <input type="text" id="dropLocation" name="dropLocation" placeholder="Drop Location" required>
-                        <input type="datetime-local" id="time" name="time" required>
-                        <input type="number" id="seats" name="seats" min="1" max="6" placeholder="Seats Available" required>
-                        <button type="submit">Create Pool</button>
-                    </form>
-                </section>
-            `;
-            document.getElementById('createPoolForm').addEventListener('submit', createPool);
-            updateNavLinks(loggedInUser, 'create-pool');
+            // Fetch user information
+            const userInfoResponse = await fetch('/api/userInfo'); // Replace with your API endpoint to fetch user info
+            if (userInfoResponse.ok) {
+                const userInfo = await userInfoResponse.json();
+    
+                content.innerHTML = `
+                    <section id="create-pool">
+                        <h2>Create a Car Pool</h2>
+                        <form id="createPoolForm">
+                            <input type="text" id="driverName" name="driverName" value="${userInfo.firstName} ${userInfo.lastName}" placeholder="Driver Name" required>
+                            <input type="text" id="driverPhone" name="driverPhone" value="${userInfo.mobileNumber}" placeholder="Driver Phone" required>
+                            <textarea id="driverNote" name="driverNote" placeholder="Driver Note"></textarea>
+                            <input type="text" id="pickupLocation" name="pickupLocation" placeholder="Pickup Location" required>
+                            <input type="text" id="dropLocation" name="dropLocation" placeholder="Drop Location" required>
+                            <input type="datetime-local" id="time" name="time" required>
+                            <input type="number" id="seats" name="seats" min="1" max="6" placeholder="Seats Available" required>
+                            <button type="submit">Create Pool</button>
+                        </form>
+                    </section>
+                `;
+                document.getElementById('createPoolForm').addEventListener('submit', createPool);
+                updateNavLinks(loggedInUser, 'create-pool');
+            } else {
+                alert('Failed to fetch user information');
+                navigateTo('home'); // Redirect to home or handle error as needed
+            }
         } else {
             navigateTo('login');
         }
@@ -57,29 +65,35 @@ async function navigateTo(page, routeId = null) {
                 const route = routeId.replace(/_/g, ' ');
                 [pickupLocation, dropLocation] = route.split(' to ');
             }
-            content.innerHTML = `
-                <section id="request-ride">
-                    <h2>Request a Ride</h2>
-                    <form id="requestRideForm">
-                        ${routeId !== 'other' ? `
-                            <select id="pool" name="pool" required></select>
-                        ` : ''}
-                        <input type="text" id="riderName" name="riderName" placeholder="Name" required>
-                        <input type="text" id="riderPhone" name="riderPhone" placeholder="Phone" required>
-                        <input type="text" id="pickupLocation" name="pickupLocation" value="${pickupLocation}" placeholder="Pickup Location" required>
-                        <input type="text" id="dropLocation" name="dropLocation" value="${dropLocation}" placeholder="Drop Location" required>
-                        <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
-                        <textarea id="requestNote" name="requestNote" placeholder="Request Note"></textarea>
-                        <button type="submit">Request Ride</button>
-                    </form>
-                </section>
-            `;
-            document.getElementById('requestRideForm').addEventListener('submit', requestRide);
-            if (routeId !== 'other') {
-                await populatePoolOptions(routeId);
+    
+            // Fetch user information
+            const userInfoResponse = await fetch('/api/userInfo');
+            if (userInfoResponse.ok) {
+                const userInfo = await userInfoResponse.json();
+    
+                content.innerHTML = `
+                    <section id="request-ride">
+                        <h2>Request a Ride</h2>
+                        <form id="requestRideForm">
+                            ${routeId !== 'other' ? `
+                                <select id="pool" name="pool" required></select>
+                            ` : ''}
+                            <input type="text" id="riderName" name="riderName" value="${userInfo.firstName} ${userInfo.lastName}" placeholder="Name" required>
+                            <input type="text" id="riderPhone" name="riderPhone" value="${userInfo.mobileNumber}" placeholder="Phone" required>
+                            <input type="text" id="pickupLocation" name="pickupLocation" value="${pickupLocation}" placeholder="Pickup Location" required>
+                            <input type="text" id="dropLocation" name="dropLocation" value="${dropLocation}" placeholder="Drop Location" required>
+                            <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
+                            <button type="submit">Request Ride</button>
+                        </form>
+                    </section>
+                `;
+                document.getElementById('requestRideForm').addEventListener('submit', requestRide);
+                if (routeId !== 'other') {
+                    await populatePoolOptions(routeId);
+                }
+                updateNavLinks(loggedInUser, 'request-ride');
             }
-            updateNavLinks(loggedInUser, 'request-ride');
-
+    
             const availablePoolsElement = document.getElementById('availablePools');
             if (availablePoolsElement) {
                 availablePoolsElement.innerHTML = pools.map((pool, index) => `
@@ -92,6 +106,40 @@ async function navigateTo(page, routeId = null) {
         } else {
             navigateTo('login');
         }
+    }
+    else if (page === 'custom-request-ride') {
+        if (loggedInUser) {
+            // Fetch user information
+            const userInfoResponse = await fetch('/api/userInfo');
+            if (userInfoResponse.ok) {
+                const userInfo = await userInfoResponse.json();
+    
+                content.innerHTML = `
+                    <section id="custom-request-ride">
+                        <h2>Request a Custom Ride</h2>
+                        <form id="customRequestRideForm">
+                            <input type="text" id="riderName" name="riderName" value="${userInfo.firstName} ${userInfo.lastName}" placeholder="Name" required>
+                            <input type="text" id="riderPhone" name="riderPhone" value="${userInfo.mobileNumber}" placeholder="Phone" required>
+                            <input type="text" id="pickupLocation" name="pickupLocation" placeholder="Pickup Location" required>
+                            <input type="text" id="dropLocation" name="dropLocation" placeholder="Drop Location" required>
+                            <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
+                            <input type="datetime-local" id="requestTime" name="requestTime" required>
+                            <textarea id="requestNote" name="requestNote" placeholder="Request Note"></textarea>
+                            <button type="submit">Request Custom Ride</button>
+                        </form>
+                    </section>
+                `;
+                document.getElementById('customRequestRideForm').addEventListener('submit', createCustomRequest);
+                updateNavLinks(loggedInUser, 'custom-request-ride');
+            } else {
+                alert('Failed to fetch user information');
+                navigateTo('home'); // Redirect to home or handle error as needed
+            }
+        } else {
+            navigateTo('login');
+        }
+
+
     } else if (page === 'available-pools') {
         content.innerHTML = `
             <section id="available-pools">
@@ -207,53 +255,59 @@ async function navigateTo(page, routeId = null) {
                 console.log('Fetched custom requests:', customRequests);
     
                 content.innerHTML = `
-                    <section id="pool-status">
-                        <h2>Pool Status</h2>
-                        <h3>Your Pools</h3>
-                        ${pools.length > 0 ? `
-                            <ul id="poolStatusList">
-                                ${pools.map(pool => {
-                                    const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
-                                    return `
-                                        <li data-pool-id="${pool._id}">
-                                            <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
-                                            <br>Seats Available: <span class="seats-available">${pool.seats}</span>
-                                            <br>Requests:
-                                            <ul>
-                                                ${pool.requests.length > 0 ? pool.requests.map(request => `
-                                                    <li data-request-id="${request._id}">
-                                                        Rider: ${request.riderName} (${request.riderPhone})<br>
-                                                        From: ${request.pickupLocation}<br>
-                                                        To: ${request.dropLocation}<br>
-                                                        Status: <span class="request-status">${request.status}</span>
-                                                        ${request.status === 'Pending' ? `<button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>` : ''}
-                                                    </li>
-                                                `).join('') : 'No requests yet'}
-                                            </ul>
-                                            <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
-                                            ${!hasAcceptedRequest ? `<button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>` : ''}
-                                            <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
-                                        </li>
-                                    `;
-                                }).join('')}
-                            </ul>
-                        ` : '<p>You have not created any pools yet.</p>'}
-                        <button onclick="navigateTo('create-pool')">Create New Pool</button>
-                        <h3>Custom Requests</h3>
-                        <ul id="customRequestsList">
-                            ${customRequests.length > 0 ? customRequests.map(request => `
-                                <li data-request-id="${request._id}">
-                                    Rider: ${request.riderName} (${request.riderPhone})<br>
-                                    From: ${request.pickupLocation}<br>
-                                    To: ${request.dropLocation}<br>
-                                    Persons: ${request.numberOfPersons}<br>
-                                    Status: ${request.status}<br>
-                                    ${request.status === 'Pending' ? `<button id="acceptCustomButton_${request._id}" data-request-id="${request._id}">Accept Custom Request</button>` : ''}
-                                </li>
-                            `).join('') : '<li>No custom requests available</li>'}
+                <section id="pool-status">
+                    <h2>Pool Status</h2>
+                    <h3>Your Pools</h3>
+                    ${pools.length > 0 ? `
+                        <ul id="poolStatusList">
+                            ${pools.map(pool => {
+                                const hasAcceptedRequest = pool.requests.some(request => request.status === 'Accepted');
+                                return `
+                                    <li data-pool-id="${pool._id}">
+                                        <strong>Pool Details:</strong> ${pool.driverName} is offering a ride from ${pool.pickupLocation} to ${pool.dropLocation} at ${new Date(pool.time).toLocaleString()}.
+                                        <br>Seats Available: <span class="seats-available">${pool.seats}</span>
+                                        <br>Requests:
+                                        <ul>
+                                            ${pool.requests.length > 0 ? pool.requests.map(request => `
+                                                <li data-request-id="${request._id}">
+                                                    Rider: ${request.riderName} (${request.riderPhone})<br>
+                                                    From: ${request.pickupLocation}<br>
+                                                    To: ${request.dropLocation}<br>
+                                                    Status: <span class="request-status">${request.status}</span>
+                                                    ${request.requestNote ? `<br>Rider Note: ${request.requestNote}` : ''}
+                                                    ${request.status === 'Pending' ? `
+                                                        <button id="acceptButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Accept</button>
+                                                        <button id="deleteButton_${request._id}" data-request-id="${request._id}" data-pool-id="${pool._id}">Delete</button>
+                                                    ` : ''}
+                                                </li>
+                                            `).join('') : 'No requests yet'}
+                                        </ul>
+                                        <button id="editButton_${pool._id}" data-pool-id="${pool._id}">Edit Pool</button>
+                                        ${!hasAcceptedRequest ? `<button id="deleteButton_${pool._id}" data-pool-id="${pool._id}">Delete Pool</button>` : ''}
+                                        <button id="completeButton_${pool._id}" data-pool-id="${pool._id}">Complete Pool</button>
+                                    </li>
+                                `;
+                            }).join('')}
                         </ul>
-                    </section>
-                `;
+                    ` : '<p>You have not created any pools yet.</p>'}
+                    ${pools.length === 0 ? '<button onclick="navigateTo(\'create-pool\')">Create New Pool</button>' : ''}
+                    <h3>Custom Requests</h3>
+                    <ul id="customRequestsList">
+                        ${customRequests.length > 0 ? customRequests.map(request => `
+                            <li data-request-id="${request._id}">
+                                Rider: ${request.riderName} (${request.riderPhone})<br>
+                                From: ${request.pickupLocation}<br>
+                                To: ${request.dropLocation}<br>
+                                Time: ${request.requestTime}<br>
+                                Persons: ${request.numberOfPersons}<br>
+                                Status: ${request.status}<br>
+                                ${request.requestNote ? `Rider Note: ${request.requestNote}<br>` : ''}
+                                ${request.status === 'Pending' ? `<button id="acceptCustomButton_${request._id}" data-request-id="${request._id}">Accept Custom Request</button>` : ''}
+                            </li>
+                        `).join('') : '<li>No custom requests available</li>'}
+                    </ul>
+                </section>
+            `;
     
                 // Add event listeners for pool buttons
                 if (pools.length > 0) {
@@ -274,6 +328,9 @@ async function navigateTo(page, routeId = null) {
                             if (request.status === 'Pending') {
                                 const acceptButton = document.getElementById(`acceptButton_${request._id}`);
                                 acceptButton.addEventListener('click', () => acceptRequest(request._id, pool._id));
+                                
+                                const deleteButton = document.getElementById(`deleteButton_${request._id}`);
+                                deleteButton.addEventListener('click', () => deleteRequest(request._id, pool._id));
                             }
                         });
                     });
@@ -748,6 +805,7 @@ async function requestRide(event) {
     const pickupLocation = document.getElementById('pickupLocation').value;
     const dropLocation = document.getElementById('dropLocation').value;
     const numberOfPersons = parseInt(document.getElementById('numberOfPersons').value);
+    const requestTime = document.getElementById('requestTime').value;
     const requestNote = document.getElementById('requestNote').value;
 
     if (isNaN(numberOfPersons) || numberOfPersons <= 0) {
@@ -768,8 +826,9 @@ async function requestRide(event) {
                 pickupLocation, 
                 dropLocation, 
                 numberOfPersons, 
+                requestTime,
                 requestNote,
-                isCustomRequest: poolId === 'custom' // Add this line
+                isCustomRequest: poolId === 'custom'
             }),
         });
 
@@ -797,6 +856,52 @@ async function requestRide(event) {
     } catch (error) {
         console.error('Error requesting ride:', error);
         alert('Failed to request ride. Please try again.');
+    }
+}
+
+async function createCustomRequest(event) {
+    event.preventDefault();
+    const riderName = document.getElementById('riderName').value;
+    const riderPhone = document.getElementById('riderPhone').value;
+    const pickupLocation = document.getElementById('pickupLocation').value;
+    const dropLocation = document.getElementById('dropLocation').value;
+    const numberOfPersons = parseInt(document.getElementById('numberOfPersons').value);
+    const requestTime = document.getElementById('requestTime').value;
+    const requestNote = document.getElementById('requestNote').value;
+
+    if (isNaN(numberOfPersons) || numberOfPersons <= 0) {
+        alert('Please enter a valid number of persons');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/custom-requests', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                riderName,
+                riderPhone,
+                pickupLocation,
+                dropLocation,
+                numberOfPersons,
+                requestTime,
+                requestNote
+            }),
+        });
+
+        if (response.ok) {
+            const requestData = await response.json();
+            alert('Custom ride request created successfully');
+            navigateTo('pool-status'); // Refresh the pool status
+        } else {
+            const errorData = await response.json();
+            alert(`Failed to create custom ride request: ${errorData.message}`);
+        }
+    } catch (error) {
+        console.error('Error creating custom request:', error);
+        alert('Failed to create custom ride request. Please try again.');
     }
 }
 
@@ -848,7 +953,7 @@ async function fetchAvailablePools() {
                 }).join('') + `
                     <li>
                         <h3>Other</h3>
-                        <button onclick="navigateTo('request-ride', 'other')">Request Custom Ride</button>
+                        <button type="button" onclick="navigateTo('custom-request-ride')">Request Custom Ride</button>
                     </li>
                 `;
 
@@ -913,38 +1018,50 @@ async function fetchUserRequests(userId) {
 
         const myRequestsList = document.getElementById('myRequestsList');
         if (myRequestsList) {
-            myRequestsList.innerHTML = requests.map(request => {
-                let driverName = request.driverName || 'Not assigned';
-                let formattedTime = request.time ? new Date(request.time).toLocaleString() : 'Time not set';
-                
-                const deleteButton = request.status !== 'Accepted'
-                    ? `<button id="deleteRequest_${request._id}" data-request-id="${request._id}">Delete Request</button>`
-                    : '<span class="accepted-status">Accepted</span>';
-                
-                const noteDisplay = request.requestNote ? `<br><em>Note: ${request.requestNote}</em>` : '';
-                
-                return `
-                    <li>
-                        <strong>Request:</strong> Ride from ${request.pickupLocation} to ${request.dropLocation}
-                        <br>Status: ${request.status}
-                        <br>Driver: ${driverName}
-                        <br>Time: ${formattedTime}
-                        <br>Source: ${request.source || (request.isCustomRequest ? 'Custom Request' : 'Unknown')}
-                        ${noteDisplay}
-                        <br>${deleteButton}
-                    </li>
-                `;
-            }).join('');
-
-            // Add event listeners for delete buttons
-            requests.forEach(request => {
-                if (request.status !== 'Accepted') {
-                    const deleteButton = document.getElementById(`deleteRequest_${request._id}`);
-                    if (deleteButton) {
-                        deleteButton.addEventListener('click', () => deleteRequest(request._id));
+            if (requests.length === 0) {
+                myRequestsList.innerHTML = '<li>No requests found.</li>';
+            } else {
+                myRequestsList.innerHTML = requests.map(request => {
+                    let driverName = request.driverName || 'Not assigned';
+                    let formattedTime = request.time ? new Date(request.time).toLocaleString() : 'Time not set';
+                    
+                    let driverInfo = '';
+                    if (request.status === 'Accepted') {
+                        driverInfo += `<br>Driver Phone: ${request.driverPhone || 'Not provided'}`;
+                        if (request.driverNote) {
+                            driverInfo += `<br>Driver Note: ${request.driverNote}`;
+                        }
                     }
-                }
-            });
+                    
+                    const deleteButton = request.status !== 'Accepted'
+                        ? `<button class="deleteRequestButton" data-request-id="${request._id}">Delete Request</button>`
+                        : '<span class="accepted-status">Accepted</span>';
+                    
+                    const noteDisplay = request.requestNote ? `<br><em>Rider Note: ${request.requestNote}</em>` : '';
+                    
+                    return `
+                        <li data-request-id="${request._id}">
+                            <strong>Request:</strong> Ride from ${request.pickupLocation} to ${request.dropLocation}
+                            <br>Status: ${request.status}
+                            <br>Driver: ${driverName}
+                            ${driverInfo}
+                            <br>Time: ${formattedTime}
+                            <br>Source: ${request.source || (request.isCustomRequest ? 'Custom Request' : 'Unknown')}
+                            ${noteDisplay}
+                            <br>${deleteButton}
+                        </li>
+                    `;
+                }).join('');
+
+                // Add event listeners for delete buttons
+                const deleteButtons = document.querySelectorAll('.deleteRequestButton');
+                deleteButtons.forEach(button => {
+                    button.addEventListener('click', (event) => {
+                        const requestId = event.target.getAttribute('data-request-id');
+                        deleteRequest(requestId);
+                    });
+                });
+            }
         } else {
             console.error('myRequestsList element not found');
         }
@@ -965,8 +1082,20 @@ async function deleteRequest(requestId) {
 
         if (response.ok) {
             console.log('Request deleted successfully');
+            
+            // Remove the request from the UI
+            const requestElement = document.querySelector(`li[data-request-id="${requestId}"]`);
+            if (requestElement) {
+                requestElement.remove();
+            }
+
+            // Check if there are no more requests
+            const myRequestsList = document.getElementById('myRequestsList');
+            if (myRequestsList && myRequestsList.children.length === 0) {
+                myRequestsList.innerHTML = '<li>No requests found.</li>';
+            }
+
             alert('Request deleted successfully');
-            navigateTo('my-requests'); // Refresh my requests after deletion
         } else {
             const errorData = await response.json();
             console.error('Failed to delete request:', errorData.message);
