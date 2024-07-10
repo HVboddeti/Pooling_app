@@ -7,13 +7,35 @@ const requestSchema = new mongoose.Schema({
     },
     riderId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User' // Reference to the User model
+        ref: 'User'
     },
-    
-    riderName: String,
-    riderPhone: String,
-    pickupLocation: String,
-    dropLocation: String,
+    riderName: {
+        type: String,
+        required: true,
+        trim: true,
+        minlength: 2
+    },
+    riderPhone: {
+        type: String,
+        required: true,
+        trim: true,
+        validate: {
+            validator: (value) => /^\d{10}$/.test(value),
+            message: props => `${props.value} is not a valid 10-digit phone number`
+        }
+    },
+    pickupLocation: {
+        type: String,
+        required: true,
+        trim: true,
+        minlength: 2
+    },
+    dropLocation: {
+        type: String,
+        required: true,
+        trim: true,
+        minlength: 2
+    },
     numberOfPersons: {
         type: Number,
         required: true,
@@ -23,23 +45,30 @@ const requestSchema = new mongoose.Schema({
             message: '{VALUE} is not an integer value for numberOfPersons'
         }
     },
-    requestNote: String,
+    requestNote: {
+        type: String,
+        trim: true
+    },
     status: {
         type: String,
         enum: ['Pending', 'Accepted'],
         default: 'Pending'
     },
-    driverName: String,
-    time: Date,
+    driverName: {
+        type: String
+    },
+    time: {
+        type: Date
+    },
     isCustomRequest: {
         type: Boolean,
         default: false
-      },
-      assignedPoolId: {
+    },
+    assignedPoolId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'AvailablePool',
         default: null
-      }
-    }, { timestamps: true });
+    }
+}, { timestamps: true });
 
 module.exports = mongoose.model('RequestRide', requestSchema);

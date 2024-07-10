@@ -28,12 +28,17 @@ const poolSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true,
+        minlength: 2,
         default: 'Driver Name Not Provided'
     },
     driverPhone: {
         type: String,
         required: true,
         trim: true,
+        validate: {
+            validator: (value) => /^\d{10}$/.test(value),
+            message: props => `${props.value} is not a valid 10-digit phone number`
+        },
         default: 'Phone Not Provided'
     },
     driverNote: {
@@ -43,12 +48,14 @@ const poolSchema = new mongoose.Schema({
     pickupLocation: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        minlength: 2
     },
     dropLocation: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
+        minlength: 2
     },
     time: {
         type: Date,
@@ -57,7 +64,8 @@ const poolSchema = new mongoose.Schema({
     seats: {
         type: Number,
         required: true,
-        min: 0,
+        min: 1,
+        max: 6,
         validate: {
             validator: Number.isInteger,
             message: '{VALUE} is not an integer value for seats'
@@ -78,22 +86,29 @@ const poolSchema = new mongoose.Schema({
             riderName: {
                 type: String,
                 required: true,
-                trim: true
+                trim: true,
+                minlength: 2
             },
             riderPhone: {
                 type: String,
                 required: true,
-                trim: true
+                trim: true,
+                validate: {
+                    validator: (value) => /^\d{10}$/.test(value),
+                    message: props => `${props.value} is not a valid 10-digit phone number`
+                }
             },
             pickupLocation: {
                 type: String,
                 required: true,
-                trim: true
+                trim: true,
+                minlength: 2
             },
             dropLocation: {
                 type: String,
                 required: true,
-                trim: true
+                trim: true,
+                minlength: 2
             },
             requestNote: {
                 type: String,
