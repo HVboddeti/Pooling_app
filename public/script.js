@@ -80,8 +80,8 @@ async function navigateTo(page, routeId = null) {
                             ` : ''}
                             <input type="text" id="riderName" name="riderName" value="${userInfo.firstName} ${userInfo.lastName}" placeholder="Name" required>
                             <input type="text" id="riderPhone" name="riderPhone" value="${userInfo.mobileNumber}" placeholder="Phone" required>
-                            <input type="text" id="pickupLocation" name="pickupLocation" value="${pickupLocation}" placeholder="Pickup Location" required>
-                            <input type="text" id="dropLocation" name="dropLocation" value="${dropLocation}" placeholder="Drop Location" required>
+                            <input type="text" id="pickupLocation" name="pickupLocation" class="location-input" value="${pickupLocation}" placeholder="Pickup Location" required>
+                            <input type="text" id="dropLocation" name="dropLocation" class="location-input" value="${dropLocation}" placeholder="Drop Location" required>
                             <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
                             <textarea id="requestNote" name="requestNote" placeholder="Additional notes (optional)"></textarea>
                             <button type="submit">Request Ride</button>
@@ -93,6 +93,7 @@ async function navigateTo(page, routeId = null) {
                     await populatePoolOptions(routeId);
                 }
                 updateNavLinks(loggedInUser, 'request-ride');
+                initializeAutocomplete();
             }
     
             const availablePoolsElement = document.getElementById('availablePools');
@@ -121,8 +122,8 @@ async function navigateTo(page, routeId = null) {
                         <form id="customRequestRideForm">
                             <input type="text" id="riderName" name="riderName" value="${userInfo.firstName} ${userInfo.lastName}" placeholder="Name" required>
                             <input type="text" id="riderPhone" name="riderPhone" value="${userInfo.mobileNumber}" placeholder="Phone" required>
-                            <input type="text" id="pickupLocation" name="pickupLocation" placeholder="Pickup Location" required>
-                            <input type="text" id="dropLocation" name="dropLocation" placeholder="Drop Location" required>
+                            <input type="text" id="pickupLocation" name="pickupLocation" class="location-input" placeholder="Pickup Location" required>
+                            <input type="text" id="dropLocation" name="dropLocation" class="location-input" placeholder="Drop Location" required>
                             <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
                             <input type="datetime-local" id="requestTime" name="requestTime" required>
                             <textarea id="requestNote" name="requestNote" placeholder="Request Note"></textarea>
@@ -132,14 +133,14 @@ async function navigateTo(page, routeId = null) {
                 `;
                 document.getElementById('customRequestRideForm').addEventListener('submit', createCustomRequest);
                 updateNavLinks(loggedInUser, 'custom-request-ride');
+                initializeAutocomplete();
             } else {
                 alert('Failed to fetch user information');
-                navigateTo('home'); // Redirect to home or handle error as needed
+                navigateTo('home');
             }
         } else {
             navigateTo('login');
         }
-
 
     } else if (page === 'available-pools') {
         content.innerHTML = `
@@ -903,6 +904,30 @@ async function createCustomRequest(event) {
         alert('Failed to create custom ride request. Please try again.');
     }
 }
+
+
+function initializeAutocomplete() {
+    if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+        console.error('Google Maps API not loaded');
+        alert('Unable to load location services. Please try refreshing the page.');
+        return;
+    }
+
+    const locationInputs = document.querySelectorAll('.location-input');
+    if (locationInputs.length === 0) {
+        console.warn('No location input fields found');
+        return;
+    }
+
+    locationInputs.forEach(input => {
+        try {
+            new google.maps.places.Autocomplete(input, { types: ['geocode'] });
+        } catch (error) {
+            console.error('Error initializing Autocomplete for input:', input, error);
+        }
+    });
+}
+
 
 
 async function fetchAvailablePools() {
