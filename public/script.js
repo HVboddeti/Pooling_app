@@ -83,6 +83,7 @@ async function navigateTo(page, routeId = null) {
                             <input type="text" id="pickupLocation" name="pickupLocation" value="${pickupLocation}" placeholder="Pickup Location" required>
                             <input type="text" id="dropLocation" name="dropLocation" value="${dropLocation}" placeholder="Drop Location" required>
                             <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
+                            <textarea id="requestNote" name="requestNote" placeholder="Additional notes (optional)"></textarea>
                             <button type="submit">Request Ride</button>
                         </form>
                     </section>
@@ -805,8 +806,7 @@ async function requestRide(event) {
     const pickupLocation = document.getElementById('pickupLocation').value;
     const dropLocation = document.getElementById('dropLocation').value;
     const numberOfPersons = parseInt(document.getElementById('numberOfPersons').value);
-    const requestTime = document.getElementById('requestTime').value;
-    const requestNote = document.getElementById('requestNote').value;
+    const requestNote = document.getElementById('requestNote')?.value || '';
 
     if (isNaN(numberOfPersons) || numberOfPersons <= 0) {
         alert('Please enter a valid number of persons');
@@ -826,7 +826,6 @@ async function requestRide(event) {
                 pickupLocation, 
                 dropLocation, 
                 numberOfPersons, 
-                requestTime,
                 requestNote,
                 isCustomRequest: poolId === 'custom'
             }),
