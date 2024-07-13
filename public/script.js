@@ -42,7 +42,7 @@ async function navigateTo(page, routeId = null) {
                             <textarea id="driverNote" name="driverNote" placeholder="Driver Note"></textarea>
                             <input type="text" id="pickupLocation" name="pickupLocation" placeholder="Pickup Location" required>
                             <input type="text" id="dropLocation" name="dropLocation" placeholder="Drop Location" required>
-                            <input type="datetime-local" id="time" name="time" required>
+                            <input type="datetime-local" id="time" name="time" min="${new Date().toISOString().slice(0, 16)}" required>
                             <input type="number" id="seats" name="seats" min="1" max="6" placeholder="Seats Available" required>
                             <button type="submit">Create Pool</button>
                         </form>
@@ -125,7 +125,7 @@ async function navigateTo(page, routeId = null) {
                             <input type="text" id="pickupLocation" name="pickupLocation" class="location-input" placeholder="Pickup Location" required>
                             <input type="text" id="dropLocation" name="dropLocation" class="location-input" placeholder="Drop Location" required>
                             <input type="number" id="numberOfPersons" name="numberOfPersons" placeholder="Number of Persons" min="1" required>
-                            <input type="datetime-local" id="requestTime" name="requestTime" required>
+                            <input type="datetime-local" id="requestTime" name="requestTime" min="${new Date().toISOString().slice(0, 16)}" required>
                             <textarea id="requestNote" name="requestNote" placeholder="Request Note"></textarea>
                             <button type="submit">Request Custom Ride</button>
                         </form>
@@ -479,6 +479,7 @@ async function navigateTo(page, routeId = null) {
             </section>
         `;
         document.getElementById('editPoolForm').addEventListener('submit', (event) => updatePool(event, pool._id));
+        initializeAutocomplete();
     }
     
     async function updatePool(event, poolId) {
@@ -796,7 +797,6 @@ async function createPool(event) {
         alert('Failed to create pool. Please try again.');
     }
 }
-
 
 //Requesting a ride
 async function requestRide(event) {
